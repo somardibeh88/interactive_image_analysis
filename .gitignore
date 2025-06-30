@@ -1,0 +1,16 @@
+sample data files/
+**/*.h5
+**/*.hdf5
+**/*.pkl
+**/*.npz
+**/*.npy
+**/*.json
+**/*.txt
+**/*.csv
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.gif
+**/*.svg
+**/*.tiff   
+**/*.tif
