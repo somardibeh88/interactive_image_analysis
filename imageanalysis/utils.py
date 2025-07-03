@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
 from skimage import measure, exposure, filters
-from data_loader import ImageSequence
+from data_loader import DataLoader
 from ipywidgets import interactive_output, IntSlider, FloatSlider, HBox, VBox
 import ipywidgets as widgets
 

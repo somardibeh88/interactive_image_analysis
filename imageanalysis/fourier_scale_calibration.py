@@ -2,7 +2,7 @@
 # Describe what have benn changed
 import numpy as np
 from scipy import ndimage
-
+from simulate import superpose_deltas
 
 from numba import njit
 @njit(cache=True)
@@ -70,17 +70,6 @@ def regular_polygon(side_length, num_sides):
 
     return vertices
 
-
-# def regular_polygon(sidelength, n):
-#     points = np.zeros((n, 2))
-
-#     i = np.arange(n, dtype=np.int32)
-#     A = sidelength / (2 * np.sin(np.pi / n))
-
-#     points[:, 0] = A * np.sin(i * 2 * np.pi / n)
-#     points[:, 1] = A * np.cos(-i * 2 * np.pi / n)
-
-#     return points
 
 def cosine_window(x, cutoff, rolloff):
     rolloff *= cutoff
@@ -285,7 +274,7 @@ class FourierSpaceCalibrator:
 
     def calibrate(self, image, return_spots=False):
 
-        """Added new templates for creating graphene multilayers. The initial idea is to switch to a more general form by having
+        """03-04-2025 Added new templates for creating graphene multilayers. The initial idea is to switch to a more general form by having
         a slider for the number of layers and slider of the fft order, but this failed to work (need another try), so I kept hexagonal and 2nd-order-hexagonal untouched. 
         One need to add a slider for the number of layers and a slider for the angles between the layers."""
         if self.template.lower() == 'hexagonal':

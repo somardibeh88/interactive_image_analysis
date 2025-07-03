@@ -289,8 +289,8 @@ class UnifiedLoader:
         self.close()
 
 
-#================== The main ImageSequence class for reading all data formats ==================
-class ImageSequence:
+#================== The main DataLoader class for reading all data formats ==================
+class DataLoader:
     def __init__(self, file_path):
         self.file_path = file_path
         self.loader = UnifiedLoader(file_path)
@@ -319,94 +319,7 @@ class ImageSequence:
     def get_metadata_item(self, key):
         """Get metadata item by key (for HDF5 metadata access)"""
         return self.raw_metadata[key]
-
-
-
-# class H5ImageSequence:
-#     def __init__(self, h5_file):
-#         self.h5_file = h5_file
-#         self._file = None
-#         self._is_eels = False
-#         self._pair_keys = []
-#         self._open_file()  # Open file immediately on instantiation
-        
-#     def _open_file(self):
-#         """Open the HDF5 file and determine its structure"""
-#         if self._file is None:
-#             self._file = h5py.File(self.h5_file, 'r')
-            
-#             # Determine file type
-#             if 'pairs' in self._file:
-#                 self._is_eels = True
-#                 self._pair_keys = sorted(list(self._file['pairs'].keys()))
-#             elif 'images' in self._file:
-#                 self._is_eels = False
-#             else:
-#                 raise ValueError("Invalid HDF5 structure - missing 'pairs' or 'images' group")
-    
-#     def close(self):
-#         """Explicitly close the file when finished"""
-#         if self._file:
-#             self._file.close()
-#             self._file = None
-            
-#     def __enter__(self):
-#         # File is already open, just return self
-#         return self
-    
-#     def __exit__(self, exc_type, exc_val, exc_tb):
-#         self.close()
-        
-#     def __del__(self):
-#         """Destructor ensures file is closed when object is garbage collected"""
-#         self.close()
-        
-#     @property
-#     def is_eels(self):
-#         return self._is_eels
-    
-#     @property
-#     def raw_data(self):
-#         if self._is_eels:
-#             return EELSLazyLoader(self._file, 'image')
-#         else:
-#             return ImageLazyLoader(self._file, 'images')
-    
-#     @property
-#     def raw_metadata(self):
-#         if self._is_eels:
-#             return EELSLazyLoader(self._file, 'image_metadata')
-#         else:
-#             return MetadataLazyLoader(self._file)
-    
-#     def get_spectrum(self, index):
-#         """Get spectrum data for EELS pair (only for EELS files)"""
-#         if not self._is_eels:
-#             raise RuntimeError("Spectrum data only available for EELS files")
-#         return EELSLazyLoader(self._file, 'spectrum')[index]
-    
-#     def get_spectrum_metadata(self, index):
-#         """Get spectrum metadata for EELS pair (only for EELS files)"""
-#         if not self._is_eels:
-#             raise RuntimeError("Spectrum metadata only available for EELS files")
-#         return EELSLazyLoader(self._file, 'spectrum_metadata')[index]
-    
-#     def get_original_filenames(self, index):
-#         """Get original filenames for a pair (only for EELS files)"""
-#         if not self._is_eels:
-#             raise RuntimeError("Original filenames only available for EELS files")
-#         pair_group = self._file['pairs'][self._pair_keys[index]]
-#         return {
-#             'point_spectrum': pair_group.attrs.get('point_spectrum_file', ''),
-#             'image': pair_group.attrs.get('image_file', '')
-#         }
-    
-#     def __len__(self):
-#         if self._is_eels:
-#             return len(self._pair_keys)
-#         else:
-#             return len(self._file['images'])
-        
+   
 
 # ================== Lazy Loader Classes ==================
 class ImageLazyLoader:
@@ -518,7 +431,7 @@ class EELSLazyLoader(MetadataMethods):
         filepath_eels = '/home/somar/Desktop/own_stuff/cleaning script/sample data files/eels_point_spectrum_pairs.h5'
         stacks_ssb = ['/home/somar/Desktop/2025/Data for publication/Sample 2525/SSB reconstruction of 4d STEM data/stack_ssbs.h5']
         file_path = '/home/somar/Desktop/own_stuff/cleaning script/sample data files/SuperScan-MAADF_2025-02-26T153932.717062_2048x2048_0.ndata1'
-        img_seq = ImageSequence(filepath_h5)
+        img_seq = DataLoader(filepath_h5)
         data = img_seq.get_frame(22)
         data1 = img_seq.raw_data[44]
         print(data.shape, data1.shape)

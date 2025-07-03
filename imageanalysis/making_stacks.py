@@ -3,7 +3,7 @@ import re
 import json
 import h5py
 import joblib
-from data_loader import ImageSequence
+from data_loader import DataLoader, EELSLazyLoader
 
 
 ##################### prepare the metadata to be json serializable #####################
@@ -37,7 +37,7 @@ def save_stack_hdf5(directory, output_file="stacktest.h5"):
 
         for idx, filename in enumerate(valid_files):
             file_path = os.path.join(directory, filename)
-            imageseq = ImageSequence(file_path)
+            imageseq = DataLoader(file_path)
 
             try:
                 raw_meta = imageseq.raw_metadata or {}
@@ -182,7 +182,7 @@ def save_eels_pairs_hdf5(directory, output_file="eels_pairs.h5"):
             
             # Process point spectrum
             try:
-                pt_seq = ImageSequence(pt_path)
+                pt_seq = DataLoader(pt_path)
                 pt_data = pt_seq.raw_data.squeeze()  # Convert to 1D
                 pt_meta = pt_seq.raw_metadata or {}
             except Exception as e:
@@ -191,7 +191,7 @@ def save_eels_pairs_hdf5(directory, output_file="eels_pairs.h5"):
                 
             # Process image
             try:
-                img_seq = ImageSequence(img_path)
+                img_seq = DataLoader(img_path)
                 img_data = img_seq.raw_data.squeeze()  
                 img_meta = img_seq.raw_metadata or {}
             except Exception as e:
@@ -227,6 +227,6 @@ def save_eels_pairs_hdf5(directory, output_file="eels_pairs.h5"):
 ######################### Example usage of the script ########################
 if __name__ == "__main__":
     # process_directory_pkl('/home/somar/Desktop/2025/Data for publication/Sample 2344/ADF images/')
-    process_directory_h5('/home/somar/Desktop/2025/Data for publication/Sample 2344/ADF images/After_Heating_200C/', output_file="test_stack.h5")
-    # process_directory_h5('/home/somar/Desktop/2025/Data for publication/Multilayer graphene/')    
+    # process_directory_h5('/home/somar/Desktop/2025/Data for publication/Sample 2344/ADF images/After_Heating_200C/', output_file="test_stack.h5")
+    process_directory_h5('/home/somar/Desktop/2025/Data for publication/Multilayer graphene/', output_file="stacktest1.h5")    
     # save_eels_pairs_hdf5('/home/somar/Desktop/2025/Data for publication/Sample 2344/EELS/')

@@ -26,7 +26,7 @@ from IPython.display import display, clear_output
 from traitlets import link
 import time
 from ipywidgets import interactive_output, HBox, VBox, FloatSlider, IntSlider, Checkbox, Button, Output, Dropdown, IntText, FloatText, Text
-from data_loader import ImageSequence
+from data_loader import DataLoader
 from filters import *
 import fourier_scale_calibration as fsc
 from fourier_scale_calibration import *
@@ -63,7 +63,7 @@ class InteractiveImageAnalysis():
     def __init__(self, stack_path, metadata_path=None, analysing_features=False, save_images_with_calibrated_scalebar=True, 
                  clean_graphene_analysis=True, contamination_analysis=False, fixed_length_scalebar=False, clusters_analysis=False, defects_analysis=False, font_path=None):
 
-        self.stack = ImageSequence(stack_path)
+        self.stack = DataLoader(stack_path)
         self.metadata = self.stack.raw_metadata
 
         self.clusters_sa_analysis = clusters_analysis
@@ -202,12 +202,8 @@ class InteractiveImageAnalysis():
         self.calibrate_region_checkbox = Checkbox(value=False, description='Calibrate Specific Region')
         self.region_x = IntSlider(min=0, max=4096, value=0, description='X:', layout={'display': 'none'})
         self.region_y = IntSlider(min=0, max=4096, value=0, description='Y:', layout={'display': 'none'})
-        # self.region_x = IntText(value=0, description='X:')
-        # self.region_y = IntText(value=0, description='Y:')
         self.region_width = IntText(value=100, description='Width:', layout={'display': 'none'})
         self.region_height = IntText(value=100, description='Height:', layout={'display': 'none'})
-        # self.region_width = IntSlider(min=0, max=4096, value=100, description='Width:')
-        # self.region_height = IntSlider(min=0, max=4096, value=100, description='Height:')
         self.apply_calibration_checkbox = Checkbox(value=False, description='Apply Calibration to All Images', layout={'width': '400px'})
         self.update_reference_image({'new': self.ref_image_index}) 
 
@@ -406,7 +402,6 @@ class InteractiveImageAnalysis():
             ]))
 
 
-
     def define_global_font_matplotlib(self):
         from matplotlib import font_manager
             # Register the font
@@ -416,7 +411,6 @@ class InteractiveImageAnalysis():
         font_name = font_manager.FontProperties(fname=self.font_path).get_name()
         # Set globally
         plt.rcParams['font.family'] = font_name
-
 
 
     def resize_image(self, image):
@@ -942,7 +936,7 @@ class InteractiveImageAnalysis():
                 hf[meta_path] = np.string_(json.dumps(meta))
 
             # Refresh metadata
-            self.stack = H5ImageSequence(self.stack_path)
+            self.stack = DataLoader(self.stack_path)
             self.metadata = self.stack.raw_metadata
             self._get_ref_fov()
 

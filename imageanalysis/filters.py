@@ -11,17 +11,20 @@ Changelog
 
     20240628 -- Added tis file from the old py_imageanalysis to this file
     20201109 -- Started implementing the filters
+    20240628 -- Added more filters and morphological operations 
 
 Contributors
 ------------
 
     Manuel Längle <manuel.laengle@univie.ac.at>
+    Somar Dibeh <somar.dibeh@univie.ac.at>
 
 """
 from scipy import fftpack
 import numpy as np
 from math import floor
-
+import cv2
+from skimage import exposure
 
 def gaussian_blur():
 
@@ -107,3 +110,84 @@ def fft_filter(data, fftspots, size):
         filtered_data.append(ifft(data_fft))
     return np.array(filtered_data), np.array(filtered_fft)
     
+
+
+
+################################## Filters functions #####################################
+def improve_contrast( image,percentile=10):
+    low = np.percentile(image, percentile)
+    high = np.percentile(image,100 - percentile)
+    return exposure.rescale_intensity(image, in_range=(low, high))
+
+
+def apply_clahe( image, clip_limit, tile_grid_size):
+    """Ensures the image is 8-bit before applying CLAHE."""
+    if image.dtype != np.uint8:
+        image = cv2.normalize(image, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    
+    clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=(tile_grid_size, tile_grid_size))
+    return clahe.apply(image)
+
+
+def apply_gamma_correction( image, gamma):
+    """Applies gamma correction."""
+    if image.dtype != np.uint8:
+        image = cv2.normalize(image, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    inv_gamma = 1.0 / gamma
+    table = np.array([(i / 255.0) ** inv_gamma * 255 for i in range(256)]).astype("uint8")
+    return cv2.LUT(image, table)
+
+
+def apply_sigmoid_contrast( image, alpha, beta):
+    normalized = image.astype(np.float32) / 255
+    sigmoid = 1 / (1 + np.exp(-alpha * (normalized - beta)))
+    return (255 * sigmoid).astype(np.uint8)
+
+
+def apply_log_transform( image):
+    c = 255 / np.log(1 + np.max(image))
+    return (c * np.log1p(image)).astype(np.uint8)
+
+
+def apply_exp_transform( image, gamma):
+    return (255 * (image/255) ** gamma).astype(np.uint8)
+
+
+def apply_gaussian_blur(image, kernel_size, sigma=0):
+    """Applies Gaussian blur to the image."""
+    if kernel_size % 2 == 0:
+        kernel_size += 1  # Ensure odd size (required by OpenCV)
+    image = cv2.GaussianBlur(image, (kernel_size, kernel_size), sigma)
+    return image
+
+
+
+
+# Modified morphological operations to use dynamic kernel size
+def dilate( image, iterations, kernel_size):
+    kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8)
+    return cv2.dilate(image, kernel, iterations=iterations)
+
+def erode( image, iterations, kernel_size):
+    kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8)
+    return cv2.erode(image, kernel, iterations=iterations)
+
+def opening( image, iterations, kernel_size):
+    kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8)
+    return cv2.morphologyEx(image, cv2.MORPH_OPEN, kernel, iterations=iterations)
+
+def closing( image, iterations, kernel_size):
+    kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8)
+    return cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel, iterations=iterations)
+
+def gradient( image, iterations, kernel_size):
+    kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8)
+    return cv2.morphologyEx(image, cv2.MORPH_GRADIENT, kernel, iterations=iterations)
+
+def boundary_extraction( image, iterations, kernel_size):
+    kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8)
+    eroded = cv2.erode(image, kernel, iterations=iterations)
+    return cv2.subtract(image, eroded)
+
+
+
