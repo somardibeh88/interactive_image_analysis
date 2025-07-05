@@ -80,111 +80,210 @@ class CalibratedImages():
         display(VBox([self.tabs, self.display_save_images()],layout={ 'width': '1000px', 'padding': '5px'}))
         self.setup_observers()
 
+
+
+
     def create_processing_tab(self):
-        filter_grid = GridBox(
-            children=[
-                self.contrast_checkbox, self.contrast_slider,
-                self.gaussian_checkbox, self.gaussian_sigma_slider,
-                self.double_gaussian_checkbox, VBox([
-                    self.double_gaussian_slider1, 
-                    self.double_gaussian_slider2,
-                    self.double_gaussian_weight_slider
-                ]),
-                self.gamma_checkbox, self.gamma_slider,
-                self.clahe_checkbox, VBox([
-                    self.clahe_clip_slider, 
-                    self.clahe_tile_slider
-                ]),
-                self.brightness_checkbox, self.brightness_slider,
-                self.sigmoid_checkbox, VBox([
-                    self.sigmoid_alpha_slider, 
-                    self.sigmoid_beta_slider
-                ]),
-                self.opening_checkbox, self.opening_slider,
-                self.kernel_size_checkbox, self.kernel_size_slider,
-                self.resize_checkbox, VBox([
-                    self.resize_factor_slider, 
-                    self.resize_method_dropdown
-                ]),
-                HBox([self.log_transform_checkbox, self.exp_transform_checkbox]), HTML("")
-            ],
-            layout=Layout(
-                grid_template_columns='repeat(2, 1fr)',
-                grid_gap='4px 6px',
-                align_items='stretch',
-            )
-        )
+        # Define grid children in [checkbox, control] pairs
+        grid_children = [
+            [self.contrast_checkbox, self.contrast_slider],
+            [self.gaussian_checkbox, self.gaussian_sigma_slider],
+            [self.double_gaussian_checkbox, VBox([
+                self.double_gaussian_slider1, 
+                self.double_gaussian_slider2,
+                self.double_gaussian_weight_slider
+            ])],
+            [self.gamma_checkbox, self.gamma_slider],
+            [self.clahe_checkbox, VBox([
+                self.clahe_clip_slider, 
+                self.clahe_tile_slider
+            ])],
+            [self.brightness_checkbox, self.brightness_slider],
+            [self.sigmoid_checkbox, VBox([
+                self.sigmoid_alpha_slider, 
+                self.sigmoid_beta_slider
+            ])],
+            [self.closing_checkbox, self.closing_slider],
+            [self.kernel_size_checkbox, self.kernel_size_slider],
+            [self.resize_checkbox, VBox([
+                self.resize_factor_slider, 
+                self.resize_method_dropdown
+            ])],
+            [HBox([self.log_transform_checkbox, self.exp_transform_checkbox]), HTML("")]
+        ]
+        
+        # Set proper layout for all controls
+        for pair in grid_children:
+            # Set checkbox layout
+            if isinstance(pair[0], Checkbox):
+                pair[0].layout.width = 'auto'
+                pair[0].layout.margin = '0 15px 0 0'
+            
+            # Set slider layout
+            if isinstance(pair[1], (FloatSlider, IntSlider)):
+                pair[1].layout.width = '300px'
+                pair[1].layout.flex = '1 1 auto'
+            
+            # Set container layout
+            if isinstance(pair[1], (VBox, HBox)):
+                pair[1].layout.width = 'auto'
+                pair[1].layout.flex_flow = 'column'
+                pair[1].layout.align_items = 'stretch'
+                
+                # Set child slider layouts
+                for child in pair[1].children:
+                    if isinstance(child, (FloatSlider, IntSlider)):
+                        child.layout.width = '300px'
+                        child.layout.flex = '1 1 auto'
+        
+        # Create grid rows
+        grid_rows = [HBox([pair[0], pair[1]], 
+                     layout=Layout(
+                         justify_content='space-between',
+                         align_items='center',
+                         width='100%',
+                         margin='5px 0'
+                     )) for pair in grid_children]
 
         return VBox([
-            HTML("<h4>Image Enhancement</h4>"),
-            filter_grid,
-            HTML("<h4>Display Options</h4>"),
+            HTML("<h4 style='margin-bottom: 15px;'>Image Enhancement</h4>"),
+            VBox(grid_rows, layout=Layout(
+                width='100%',
+                padding='10px',
+                border='1px solid #e0e0e0',
+                border_radius='5px'
+            )),
+            HTML("<h4 style='margin-top: 20px; margin-bottom: 15px;'>Display Options</h4>"),
             HBox([
-                VBox([Label("Slice:"), self.slice_slider]),
-                VBox([Label("Colormap:"), self.colormap_dropdown])
-            ])
-        ])
+                VBox([self.slice_slider], 
+                     layout=Layout(width='45%', margin='0 10px 0 0')),
+                VBox([self.colormap_dropdown], 
+                     layout=Layout(width='45%', margin='0 0 0 10px'))
+            ], layout=Layout(
+                width='100%',
+                justify_content='space-between',
+                margin='10px 0'
+            ))
+        ], layout=Layout(padding='15px'))
 
     def create_region_tab(self):
-        region_grid = GridBox(
-            children=[
-                self.specific_region_checkbox, HTML(""),
-                Label("  "), self.region_x_slider,
-                Label("  "), self.region_y_slider,
-                Label("  "), self.region_width_text,
-                Label("  "), self.region_height_text,
-            ],
-            layout=Layout(
-                grid_template_columns='max-content 1fr',
-                grid_gap='4px 6px',
-                align_items='stretch',
-            )
-        )
+        # Configure region widgets
+        self.region_x_slider.layout.width = '300px'
+        self.region_y_slider.layout.width = '300px'
+        self.region_width_text.layout.width = '300px'
+        self.region_height_text.layout.width = '300px'
+        self.specific_region_checkbox.layout.margin = '0 0 10px 0'
+        
         return VBox([
-            HTML("<h4>Region Selection</h4>"),
-            region_grid
-        ])
-    
-    
+            HTML("<h4 style='margin-bottom: 15px;'>Region Selection</h4>"),
+            VBox([ self.specific_region_checkbox,
+                GridBox(
+                    children=[
+                        Label("   "), self.region_x_slider,
+                        Label("   "), self.region_y_slider,
+                        Label("   "), self.region_width_text,
+                        Label("   "), self.region_height_text,
+                    ],
+                    layout=Layout(
+                        grid_template_columns='max-content 1fr',
+                        grid_gap='10px 15px',
+                        padding='15px',
+                        border='1px solid #e0e0e0',
+                        border_radius='5px',
+                        width='100%'
+                    )
+                )
+            ])
+        ], layout=Layout(padding='15px'))
+
+
     def create_calibration_tab(self):
-        def toggle_calibration(change):
-            if change['new']:
-                self.fft_calibration.calibration_controls.layout.display = ''
-                # Trigger initial calibration
-                self.fft_calibration.fft_calibrate()
-            else:
-                self.fft_calibration.calibration_controls.layout.display = 'none'
-                with self.fft_calibration.calibration_display:
-                    clear_output(wait=True)
-        
-        # Use the FFT class's checkbox instead of creating a new one
-        self.fft_calibration.calibration_checkbox_fft_calib.observe(toggle_calibration, names='value')
-        
-        return VBox([
-            self.fft_calibration.calibration_checkbox_fft_calib,
-            self.fft_calibration.calibration_controls
-        ])
-    
+            def toggle_calibration(change):
+                if change['new']:
+                    self.fft_calibration.calibration_controls.layout.display = ''
+                    # Trigger initial calibration
+                    self.fft_calibration.fft_calibrate()
+                else:
+                    self.fft_calibration.calibration_controls.layout.display = 'none'
+                    with self.fft_calibration.calibration_display:
+                        clear_output(wait=True)
+            
+            # Use the FFT class's checkbox instead of creating a new one
+            self.fft_calibration.calibration_checkbox_fft_calib.observe(toggle_calibration, names='value')
+            
+            return VBox([
+                self.fft_calibration.calibration_checkbox_fft_calib,
+                self.fft_calibration.calibration_controls
+            ], layout=Layout(padding='10px'))
+
+
 
     def create_save_tab(self):
-        save_grid = GridBox(
-            children=[
-                Label("Name:"), self.image_name,
-                Label("Format:"), self.image_format_dropdown,
-                self.scalebar_length_checkbox, self.scalebar_length_slider,
-                self.dpi_checkbox, self.dpi_slider,
-                self.save_image_button, self.save_for_figure_button
-            ],
-            layout=Layout(
-                grid_template_columns='max-content 1fr',
-                grid_gap='4px 6px',
-                align_items='center'
-            )
+        # Set fixed widths for labels to ensure full text visibility
+        label_width = "200px"
+        slider_width = "600px"
+        widget_width = "300px"
+        
+        # Configure widgets with proper sizing
+        self.image_name.layout = Layout(width=widget_width)
+        self.image_format_dropdown.layout = Layout(width=widget_width)
+        self.scalebar_length_text.layout = Layout(width=slider_width)
+        self.dpi_slider.layout = Layout(width=slider_width)
+        self.fig_x_text.layout = Layout(width=widget_width)
+        self.fig_y_text.layout = Layout(width=widget_width)
+        
+
+        
+        # Create rows with proper alignment
+        name_row = HBox([ self.image_name], layout=Layout(margin='0 0 10px 0'))
+        format_row = HBox([ self.image_format_dropdown], layout=Layout(margin='0 0 10px 0'))
+        
+        scalebar_row = HBox([
+            self.scalebar_length_checkbox,
+            self.scalebar_length_text
+        ], layout=Layout(align_items='center', margin='0 0 5px 0'))
+        
+        dpi_row = HBox([
+            self.dpi_checkbox,
+            self.dpi_slider
+        ], layout=Layout(align_items='center', margin='0 0 15px 0'))
+
+        # figure size widgets
+        inner_fig_size_box = HBox(
+            [self.fig_x_text, self.fig_y_text],
+            layout=Layout(width='auto')
         )
+        
+        fig_size_row = HBox([
+            self.dtermine_fig_size_checkbox,
+            inner_fig_size_box
+        ], layout=Layout(align_items='center', margin='0 0 15px 0'))
+        
+        # Style buttons
+        self.save_image_button.layout = Layout(width='45%', margin='0 5px 0 0')
+        self.save_for_figure_button.layout = Layout(width='45%', margin='0 0 0 5px')
+        button_row = HBox([
+            self.save_image_button,
+            self.save_for_figure_button
+        ], layout=Layout(justify_content='space-between', width='100%'))
+        
+        # Create the main container
         return VBox([
-            HTML("<h4>Save Options</h4>"),
-            save_grid
-        ])
+            HTML("<h4 style='margin-bottom: 15px;'>Save Options</h4>"),
+            VBox([
+                name_row,
+                format_row,
+                scalebar_row,
+                dpi_row,
+                fig_size_row,
+                button_row
+            ], layout=Layout(
+                padding='15px',
+                border='1px solid #e0e0e0',
+                border_radius='5px',
+                width='100%'
+            ))
+        ], layout=Layout(padding='15px'))
 
 
 
@@ -202,11 +301,15 @@ class CalibratedImages():
             self.clahe_checkbox: [self.clahe_clip_slider, self.clahe_tile_slider],
             self.brightness_checkbox: [self.brightness_slider],
             self.sigmoid_checkbox: [self.sigmoid_alpha_slider, self.sigmoid_beta_slider],
-            self.opening_checkbox: [self.opening_slider],
+            self.closing_checkbox: [self.closing_slider],
             self.kernel_size_checkbox: [self.kernel_size_slider],
             self.resize_checkbox: [self.resize_factor_slider, self.resize_method_dropdown],
-            self.scalebar_length_checkbox: [self.scalebar_length_slider],
+            self.scalebar_length_checkbox: [self.scalebar_length_text],
             self.dpi_checkbox: [self.dpi_slider],
+            self.dtermine_fig_size_checkbox: [
+                self.fig_x_text, 
+                self.fig_y_text
+            ],
             self.specific_region_checkbox: [
                 self.region_x_slider, 
                 self.region_y_slider,
@@ -470,13 +573,13 @@ class CalibratedImages():
             image = apply_exp_transform(image, gamma)
 
         return image
+    
 
 
 
-    def display_calibrated_image_with_scalebar(self, gamma, clahe_clip, clahe_tile, gaussian_sigma,contrast, double_gaussian_sigma1, double_gaussian_sigma2,
-                                         double_gaussian_weight, kernel, brightness, sigmoid_alpha,sigmoid_beta, scalebar_length, exp_transform, log_transform, 
-                                         x,y,h,w, resize_factor,resize_method, opening, line_x, line_y, line_length, line_width, line_angle,
-                                        region_profile_x, region_profile_y, region_profile_width, region_profile_height, colormap=None, slice_number=None):
+    def display_calibrated_image_with_scalebar(self, gamma, clahe_clip, clahe_tile, gaussian_sigma, contrast, double_gaussian_sigma1, double_gaussian_sigma2,
+                                            double_gaussian_weight, kernel, brightness, sigmoid_alpha, sigmoid_beta, scalebar_length, exp_transform, log_transform, 
+                                            x, y, h, w, resize_factor, resize_method, closen, fig_x, fig_y,dpi_val,  colormap=None, slice_number=None):
         
         with self.calibration_display:
             clear_output(wait=True)
@@ -485,296 +588,83 @@ class CalibratedImages():
         image = self.stack.raw_data[slice_number]
         print("Minimum value:", np.min(image), "Maximum value:", np.max(image))
         nm_per_pixel, _ = self.fft_calibration.get_calibrated_image(image, slice_number)
-     
-
-        image = closing(image, opening, kernel)
-
+        
+        # Apply morphological operations and normalization
+        image = closing(image, closen, kernel)
         print(f"Image {slice_number} shape:", image.shape)
         image = (image - np.min(image)) / (np.max(image) - np.min(image)) * 255 
         image = self.apply_filters(image, gamma, clahe_clip, clahe_tile, gaussian_sigma, contrast, double_gaussian_sigma1, double_gaussian_sigma2, double_gaussian_weight, kernel,
-                      brightness, sigmoid_alpha, sigmoid_beta)
-        image_1 = image.copy()
+                    brightness, sigmoid_alpha, sigmoid_beta)
+        
+        # Resize if enabled
         if self.resize_checkbox.value:
             interpolation_method = self.INTERPOLATION_MAP[self.resize_method_dropdown.value]
-            image = cv2.resize(image, (int(image.shape[1] * self.resize_factor_slider.value), int(image.shape[0] * self.resize_factor_slider.value)), interpolation=interpolation_method)
-
-        # get histogram
-        hist, bins = np.histogram(image.flatten(), 256, [0, 256])
-        bins_center = (bins[:-1] + bins[1:]) / 2
+            image = cv2.resize(image, (int(image.shape[1] * self.resize_factor_slider.value), 
+                            int(image.shape[0] * self.resize_factor_slider.value)), 
+                            interpolation=interpolation_method)
+            resize_factor = self.resize_factor_slider.value
+        else:
+            resize_factor = 1.0
+        
+        # Compute effective pixel size after resizing
+        effective_pixel_size = nm_per_pixel / resize_factor
+        fig_x_cm = fig_x / 2.54  # Convert cm to inches
+        fig_y_cm = fig_y / 2.54  # Convert cm to inches
+        # Create image figure
+        if not hasattr(self, 'fig1') or not plt.fignum_exists(self.fig1.number):
+            self.fig1, self.axs_img = plt.subplots(1, 2, figsize=(fig_x_cm, fig_y_cm), dpi=dpi_val, gridspec_kw={'wspace': 0, 'hspace': 0})
 
         
-        
-        # Create/maintain figure
-        if not hasattr(self, 'fig') or not plt.fignum_exists(self.fig.number):
-            self.fig, self.axs = plt.subplots(2, 2, figsize=(24, 8), dpi=100)
-            self.fig.subplots_adjust(0, 0, 1, 1)
-            self.fig.canvas.header_visible = False
-            self.fig.canvas.footer_visible = False
-
-        # Clear previous content
-        for ax in self.axs.flatten():
+        # Clear image figure
+        for ax in self.axs_img:
             ax.cla()
             ax.axis('off')
-
-        # Clear previous patches
-        for ax in self.axs.flatten():
-            for patch in ax.patches[:]:
-                patch.remove()
-
-
-
-        self.axs[0,0].imshow(image, cmap=colormap)
-        self.add_scalebar(self.axs[0,0], nm_per_pixel, scalebar_length)
-        self.axs[0,0].set_title('Original Image')
-                
-        if self.specific_region_checkbox.value is True:
-            x = self.region_x_slider.value
-            y = self.region_y_slider.value
-            w = self.region_width_text.value
-            h = self.region_height_text.value
-            rect = patches.Rectangle((x, y), w, h,
-                                    linewidth=1, edgecolor='red', facecolor='none')
-            self.axs[0,0].add_patch(rect)
-            image_1 = image[y:y+h, x:x+w]
-            self.axs[1,0].imshow(image_1, cmap=colormap)
-
-        else:
-            self.axs[1,0].imshow(image, cmap=colormap)
-            self.add_scalebar(self.axs[1,0], nm_per_pixel, scalebar_length)
-        # Add intensity profile elements
-        line_profile = None
-        region_profile = None
-
-        # Draw line profile if parameters are set
-        if self.specific_region_checkbox.value and any([self.region_x_slider.value > 0, self.region_y_slider.value > 0]):
-            # Get values in image coordinates
-            length = self.region_width_text.value
-            width = self.region_height_text.value
-            angle = self.line_angle.value
-
-            # Calculate line endpoints
-            angle_rad = np.deg2rad(angle)
-            dx = length * np.cos(angle_rad)
-            dy = length * np.sin(angle_rad)
-
-            # Create polygon for width visualization
-            perp_angle = angle_rad + np.pi/2
-            dx_perp = width/2 * np.cos(perp_angle)
-            dy_perp = width/2 * np.sin(perp_angle)
-
-            x0 = self.region_x_slider.value 
-            y0 = self.region_y_slider.value + width/2 * np.sin(perp_angle)
-
-            
-            # Calculate polygon vertices in image coordinates
-            points = [
-                (x0 - dx_perp, y0 - dy_perp),
-                (x0 + dx_perp, y0 + dy_perp),
-                (x0 + dx + dx_perp, y0 + dy + dy_perp),
-                (x0 + dx - dx_perp, y0 + dy - dy_perp)
-            ]
-            
-            # Draw sampling area
-            self.axs[0,0].add_patch(plt.Polygon(points, closed=True, 
-                                        edgecolor='red', 
-                                        facecolor='red', 
-                                        alpha=0.3))
-            
-            # Calculate actual profile
-            line_profile = self.get_line_profile(image, x0, y0, length, width, angle)
-            
-        # Draw region if parameters are set
-        if self.specific_region_checkbox.value and  any([self.region_x_slider.value > 0, self.region_y_slider.value > 0]):
-            rx = self.region_x_slider.value
-            ry = self.region_y_slider.value
-            rw = self.region_width_text.value
-            rh = self.region_height_text.value
-            
-            # Draw rectangle on image
-            rect = patches.Rectangle((rx, ry), rw, rh, 
-                                linewidth=2, edgecolor='cyan', facecolor='none')
-            self.axs[0,0].add_patch(rect)
-            
-            # Calculate region profile
-            region_profile = self.get_region_profile(image, rx, ry, rw, rh)
-
-        self.axs[0,0].set_title('Cropped region')
-        v_min, v_max = image.min(), image.max()
-        hist_max = hist.max()
-
-        if v_max != v_min:
-            # Create mask for current display range
-            mask = (bins_center >= v_min) & (bins_center <= v_max)
-            
-        # Histogram plot
-        self.axs[0,1].plot(bins_center, hist, color='gray', alpha=0.7)
-        self.axs[0,1].fill_between(bins_center, hist, color='gray', alpha=0.4)  # Corrected line
-        self.axs[0,1].set_title('Histogram')
-        self.axs[0,1].set_xlabel('Pixel Intensity')
-        self.axs[0,1].set_ylabel('Frequency')
-        self.axs[0,1].set_xlim(0, 255)
-        self.axs[0,1].set_ylim(0, np.max(hist) * 1.1)
-        self.axs[0,1].axis('on')
-        self.axs[0,1].set_facecolor('#f0f0f0')
-        self.axs[0,1].grid(True, linestyle='--', alpha=0.7)
-
-        # Intensity Profiles
-        if line_profile is not None or region_profile is not None:
-            self.axs[1,1].axis('on')  # Force axis to be visible
-            self.axs[1,1].set_facecolor('#f0f0f0')  
-            self.axs[1,1].grid(True, linestyle='--', alpha=0.7)
-            
-            # Set spine properties
-            for spine in self.axs[1,1].spines.values():
-                spine.set_visible(True)
-                spine.set_edgecolor('#404040')
-                spine.set_linewidth(0.8)
-
-            # Customize ticks and labels
-            self.axs[1,1].tick_params(axis='both', which='major', 
-                                labelsize=10, color="#155DBC")
-            self.axs[1,1].set_xlabel('Position', fontsize=12, color='#303030')
-            self.axs[1,1].set_ylabel('Intensity', fontsize=12, color='#303030')
-            self.axs[1,1].set_title('Intensity Profiles', fontsize=14, pad=15)
-
-            # Plot styling
-            if line_profile is not None:
-                self.axs[1,1].plot(line_profile, 
-                                color="#344ab8", 
-                                linewidth=2,
-                                linestyle='-',
-                                marker='o',
-                                markersize=4,
-                                label='Line Profile')
-            if region_profile is not None:
-                self.axs[1,1].plot(region_profile, 
-                                color='#0066cc', 
-                                linewidth=2,
-                                linestyle='--',
-                                marker='s',
-                                markersize=4,
-                                label='Region Profile')
-                
-            # Add legend with nicer styling
-            legend = self.axs[1,1].legend(frameon=True, 
-                                    fontsize=10,
-                                    facecolor='white',
-                                    edgecolor='#404040',
-                                    loc='upper right')
-            legend.get_frame().set_linewidth(0.8)
-
-        else:
-            self.axs[1,1].axis('off')
-
-        # Adjust layout with padding
-        self.fig.tight_layout(pad=4.0)
-        self.fig.subplots_adjust(wspace=0.15, hspace=0.15)
-        self.fig.canvas.draw_idle()
-        return image, image_1
-
-
-
-    def save_image(self, _):
-        # Get current parameters
-        params = {
-            'gamma': self.gamma_slider.value,
-            'clahe_clip': self.clahe_clip_slider.value,
-            'clahe_tile': self.clahe_tile_slider.value,
-            'gaussian_sigma': self.gaussian_sigma_slider.value,
-            'contrast': self.contrast_slider.value,
-            'double_gaussian_sigma1': self.double_gaussian_slider1.value,
-            'double_gaussian_sigma2': self.double_gaussian_slider2.value,
-            'double_gaussian_weight': self.double_gaussian_weight_slider.value,
-            'scalebar_length': self.scalebar_length_slider.value,
-            'colormap': self.colormap_dropdown.value,
-            'slice_number': self.slice_slider.value,
-            'kernel': self.kernel_size_slider.value,
-            'brightness': self.brightness_slider.value,
-            'sigmoid_alpha': self.sigmoid_alpha_slider.value,
-            'sigmoid_beta': self.sigmoid_beta_slider.value,
-            'exp_transform': self.exp_transform_checkbox.value,
-            'log_transform': self.log_transform_checkbox.value,
-            'contrast': self.contrast_slider.value,
-            'x' : self.region_x_slider.value,
-            'y' : self.region_y_slider.value,
-            'h' : self.region_height_text.value,
-            'w' : self.region_width_text.value,  
-            'resize_factor': self.resize_factor_slider.value,
-            'resize_method': self.resize_method_dropdown.value,  
-            'opening': self.opening_slider.value,
-            'line_x': self.line_x.value,
-            'line_y': self.line_y.value,
-            'line_length': self.line_length.value,
-            'line_width': self.line_width.value,
-            'line_angle': self.line_angle.value,
-            'region_profile_x': self.region_profile_x.value,
-            'region_profile_y': self.region_profile_y.value,
-            'region_profile_width': self.region_profile_width.value,
-            'region_profile_height': self.region_profile_height.value,      
-        }
         
-        # Create dedicated figure for vector output
-        dpi = self.dpi_slider.value
-        fig = plt.figure(figsize=(8, 8), dpi=dpi)
-        ax = fig.add_axes([0, 0, 1, 1])
+        
+        # Display original image with scale bar
+        self.axs_img[0].imshow(image, cmap=colormap)
+        self.add_scalebar(self.axs_img[0], effective_pixel_size, scalebar_length)
 
-        # Generate and display image
-        if self.specific_region_checkbox.value is True:
-            image = self.display_calibrated_image_with_scalebar(**params)[1]
+        # Manually place the two axes exactly in halves
+        self.axs_img[0].set_position([0.0, 0.0, 0.5, 1.0])  # left half
+        self.axs_img[1].set_position([0.5, 0.0, 0.5, 1.0])  # right half
+        # self.axs_img[0].set_title('Original Image')
+        
+        # Display cropped image with scale bar
+        if self.specific_region_checkbox.value:
+            # Adjust region coordinates for resizing
+            x_adj = int(x * resize_factor)
+            y_adj = int(y * resize_factor)
+            w_adj = int(w * resize_factor)
+            h_adj = int(h * resize_factor)
+            
+            cropped_image = image[y_adj:y_adj+h_adj, x_adj:x_adj+w_adj]
+            rect = patches.Rectangle((x_adj, y_adj), w_adj, h_adj, linewidth=1, 
+                                    edgecolor='red', facecolor='none')
+            self.axs_img[0].add_patch(rect)
+            self.axs_img[1].imshow(cropped_image, cmap=colormap)
+            self.add_scalebar(self.axs_img[1], effective_pixel_size, scalebar_length)
+            # self.axs_img[1].set_title('Cropped Image')
         else:
-            image = self.display_calibrated_image_with_scalebar(**params)[0]
-        nm_per_pixel, _ = self.get_calibrated_image(image, self.slice_slider.value)
-        nm_per_pixel = nm_per_pixel / params['resize_factor']
-        ax.imshow(image, cmap=params['colormap'])
-        self.add_scalebar(ax, nm_per_pixel, params['scalebar_length'])
-        rect1 = plt.Rectangle((params['region_profile_x'], params['region_profile_y']), params['region_profile_width'], params['region_profile_height'],
-                                linewidth=1, edgecolor='yellow', facecolor='none')
-        ax.add_patch(rect1)
-
-        # Add rotated line profile polygon
-        x0 = params['line_x']
-        y0 = params['line_y']
-        length = params['line_length']
-        width = params['line_width']
-        angle = params['line_angle']
-
-        angle_rad = np.deg2rad(angle)
-        dx = length * np.cos(angle_rad)
-        dy = length * np.sin(angle_rad)
-
-        perp_angle = angle_rad + np.pi/2
-        dx_perp = width/2 * np.cos(perp_angle)
-        dy_perp = width/2 * np.sin(perp_angle)
-
-        points = [
-            (x0 - dx_perp, y0 - dy_perp),
-            (x0 + dx_perp, y0 + dy_perp),
-            (x0 + dx + dx_perp, y0 + dy + dy_perp),
-            (x0 + dx - dx_perp, y0 + dy - dy_perp)
-        ]
-
-        polygon = plt.Polygon(points, closed=True, 
-                            edgecolor='yellow', 
-                            facecolor='yellow', 
-                            alpha=0.7)
-        ax.add_patch(polygon)
-        ax.axis('off')
-        file_format = self.image_format_dropdown.value.lower()  # e.g., "png" or "svg"
-
-        filename = f"{self.image_name.value}.{file_format}"
-        if '/' in filename:
-            image_name = filename.split('/')[-1]
-            dir_name = filename.split('/')[0]
-        else:
-            image_name = filename
-            dir_name = '.'
-
-        os.makedirs(dir_name, exist_ok=True)
-        file_path = os.path.join(dir_name, image_name)
-
-        fig.savefig(file_path, format=file_format, bbox_inches='tight', pad_inches=0)
-        plt.close(fig)
-        print(f"Image saved: {file_path}")
+            self.axs_img[1].imshow(image, cmap=colormap)
+            self.add_scalebar(self.axs_img[1], effective_pixel_size, scalebar_length)
+            # self.axs_img[1].set_title('Full Image')
+        
+        self.fig1.canvas.draw()
+        # Update save function
+        def save_figure(b):
+            file_format = self.image_format_dropdown.value.lower()
+            base_name = self.image_name.value
+            
+            # Save image figure
+            img_filename = f"{base_name}.{file_format}"
+            self.fig1.set_size_inches(fig_x_cm, fig_y_cm)
+            self.fig1.savefig(img_filename, format=file_format, dpi=dpi_val, bbox_inches='tight')
+            print(f"Image figure saved as {img_filename}")
+        
+        self.save_for_figure_button.on_click(save_figure)
+        
+        return image, cropped_image if self.specific_region_checkbox.value else image
 
 
 
@@ -786,7 +676,11 @@ class CalibratedImages():
                 artist.remove()
         
         # Get current image dimensions
-        img_size = ax.images[0].get_array().shape[0]
+        img_size_y = ax.images[0].get_array().shape[0]
+        img_size_x = ax.images[0].get_array().shape[1]
+        img_size = img_size_x
+        print(f"Image shape: {ax.images[0].get_array().shape}")
+        print(f"Image size: {img_size} pixels")
         shift_pixels = img_size // 16
         
         # Calculate scale bar parameters
@@ -794,6 +688,7 @@ class CalibratedImages():
             scale_bar_pixels = img_size // 4
             scale_bar_length_nm = scale_bar_pixels * nm_per_pixel
         else:
+            scale_bar_length_nm = scalebar_length 
             scale_bar_pixels = int(scalebar_length / nm_per_pixel)
 
         if scale_bar_length_nm > 10:
@@ -836,8 +731,8 @@ class CalibratedImages():
         text_y = ax_start_y + scale_bar_thickness * 2
         base_image_size_ref_font = 512
         # Font size calculation matching original image.size/16 ratio
-        font_size = (img_size / 16) * (base_image_size_ref_font/img_size)  # Converting to points
-        
+        # font_size = (img_size / 16) * (base_image_size_ref_font/img_size)  # Converting to points
+        font_size = 10
         text_artist = ax.text(
             text_x, text_y, text,
             transform=ax.transAxes,
@@ -846,7 +741,7 @@ class CalibratedImages():
             va='bottom',
             fontsize=font_size,
             fontproperties=FontProperties(fname=self.font_path),
-            path_effects=[patheffects.withStroke(linewidth=1, foreground="black")]
+            path_effects=[patheffects.withStroke(linewidth=0.5, foreground="black")]
         )
         return ax
     
@@ -868,7 +763,7 @@ class CalibratedImages():
                                                                                 'sigmoid_beta': self.sigmoid_beta_slider,
                                                                                 'exp_transform': self.exp_transform_checkbox,
                                                                                 'log_transform': self.log_transform_checkbox,
-                                                                                'scalebar_length': self.scalebar_length_slider,
+                                                                                'scalebar_length': self.scalebar_length_text,
                                                                                 'colormap': self.colormap_dropdown,
                                                                                 'x' : self.region_x_slider,
                                                                                 'y' : self.region_y_slider,
@@ -876,16 +771,9 @@ class CalibratedImages():
                                                                                 'w' : self.region_width_text,
                                                                                 'resize_factor': self.resize_factor_slider,
                                                                                 'resize_method': self.resize_method_dropdown,
-                                                                                'opening': self.opening_slider,
-                                                                                # line and region profile parameters
-                                                                                'line_x': self.line_x,
-                                                                                'line_y': self.line_y,
-                                                                                'line_length': self.line_length,
-                                                                                'line_width': self.line_width,
-                                                                                'line_angle': self.line_angle,
-                                                                                'region_profile_x': self.region_profile_x,
-                                                                                'region_profile_y': self.region_profile_y,
-                                                                                'region_profile_width': self.region_profile_width,
-                                                                                'region_profile_height': self.region_profile_height})
+                                                                                'closen': self.closing_slider,
+                                                                                'fig_x': self.fig_x_text,
+                                                                                'fig_y': self.fig_y_text,
+                                                                                'dpi_val': self.dpi_slider})
         return output
                                                       

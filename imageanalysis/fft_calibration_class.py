@@ -203,7 +203,7 @@ class FFTCalibration():
                  layout={'margin': '10px 0', 'width': '100%'}),
             self.calibration_output,
             self.calibration_display
-        ], layout={'display': 'none', 'width': '700px', 'padding': '5px'})
+        ], layout={'display': 'none', 'width': '840px', 'padding': '5px'})
 
         calibration_checkboxes = [self.calibration_checkbox_fft_calib, self.gaussian_checkbox_fft_calib, self.double_gaussian_checkbox_fft_calib,
                                   self.calibrate_region_checkbox_fft_calib, self.contrast_checkbox_fft_calib, self.gamma_checkbox_fft_calib]

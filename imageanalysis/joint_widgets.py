@@ -85,8 +85,9 @@ def create_widgets():
     brightness_slider = FloatSlider(min=-150, max=250, value=0, step=1, description='Brightness', layout={'display': 'none', 'width': '95%'})
     sigmoid_alpha_slider = FloatSlider(min=0, max=20, value=10, step=0.5, description='Sigmoid Alpha', layout={'display': 'none', 'width': '95%'})
     sigmoid_beta_slider = FloatSlider(min=0, max=1, value=0.5, step=0.01, description='Sigmoid Beta', layout={'display': 'none', 'width': '95%'})
-
-    scalebar_length_slider = IntSlider(min=1, max=400, value=10, step=1, description='Scalebar length (nm)', style={'description_width': '200px'}, layout={'display': 'none','width': '95%'})
+    ################### figures related tools #####################
+    scalebar_length_slider = IntSlider(min=1, max=400, value=10, step=1, description='Scalebar length (nm)', style={'description_width': '300px'}, layout={'display': 'none','width': '95%'})
+    scalebar_length_text = IntText(value=10, description='Scalebar length (nm):', style={'description_width': '300px'}, layout={'display': 'none', 'width': '95%'})
     scalebar_length_checkbox = Checkbox(value=False, description='Add specific scalebar length (nm)')
 
     #Selected region sliders
@@ -95,9 +96,11 @@ def create_widgets():
     region_width_text = IntText(value=100, description='Width:', layout={'display': 'none', 'width': '95%'})
     region_height_text = IntText(value=100, description='Height:', layout={'display': 'none', 'width': '95%'})
 
-
     dpi_slider = IntSlider(min=100, max=1200, value=300, step=100, description='DPI', style={'description_width': '120px'}, layout={'display': 'none', 'width': '95%'})
     resize_factor_slider = IntSlider(min=1, max=10, value=1, step=1, description='Factor:', style={'description_width': '120px'}, layout={'width': '95%'})
+    fig_x_text = IntText(value=16, description='Figure X (cm):', style={'description_width': '120px'}, layout={'display': 'none', 'width': '95%'})
+    fig_y_text = IntText(value=8, description='Figure Y (cm):', style={'description_width': '120px'}, layout={'display': 'none', 'width': '95%'})
+    dtermine_fig_size_checkbox = Checkbox(value=False, description='Determine figure size')
 
     # Sliders for two-steps thresholding image analysis
     threshold_slider = FloatSlider(min=0, max=255, value=100, step=0.2, description='Threshold', style={'description_width': '120px'}, layout={'display': 'none', 'width': '95%'},continuous_update=False)
@@ -184,7 +187,7 @@ def create_widgets():
     scalebar_length_checkbox = Checkbox(value=False, description='Custom scalebar', layout={'width': '95%'})
     dpi_checkbox = Checkbox(value=False, description='Custom DPI', layout={'width': '95%'})      
     resize_checkbox = Checkbox(value=False, description='Resize image', layout={'width': '95%'})
-
+    show_plots_checkbox = Checkbox(value=False, description='Show Plots', layout={'width': '95%'})
 
     ########################## FFT Calibration Checkboxes ##########################
     apply_calibration_checkbox = Checkbox(value=False, description='Apply to All', layout={'width': '95%'})
