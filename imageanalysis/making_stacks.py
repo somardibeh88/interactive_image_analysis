@@ -118,7 +118,7 @@ def save_stack_images_pkl(directory, metadata=False):
     # Load images while preserving original shapes
     for file in os.listdir(directory):
         if file.endswith('.ndata1') and 'SuperScan (HAADF) (Gaussian Blur)' not in file:
-            imageseq = ImageSequence(os.path.join(directory, file))
+            imageseq = DataLoader(os.path.join(directory, file))
             image = imageseq.raw_data  # Assuming this is a NumPy array
             metadata = imageseq.raw_metadata  # Assuming metadata is a dictionary
             images.append(image)
@@ -140,7 +140,6 @@ def process_directory_pkl(directory):
             subdir_path = os.path.join(directory, subdir)
             if os.path.isdir(subdir_path):
                 process_directory_pkl(subdir_path)
-
 
 
 

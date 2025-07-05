@@ -1,8 +1,14 @@
 # This code is copied from https://github.com/jacobjma/fourier-scale-calibration/blob/main/fourier_scale_calibration/fourier_scale_calibration.py
-# Describe what have benn changed
+
+"""""""""""""""""""""""""""""
+Fourier Space Calibration Module 
+Author: Jacob Madsen J. M.
+Modified by: [Somar Dibeh]
+"""""""""""""""""""""""""""""
+
 import numpy as np
 from scipy import ndimage
-from simulate import superpose_deltas
+from .simulate import superpose_deltas
 
 from numba import njit
 @njit(cache=True)

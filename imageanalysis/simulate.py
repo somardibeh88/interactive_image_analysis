@@ -1,5 +1,6 @@
-import numpy as np
+# This code is copied from https://github.com/jacobjma/fourier-scale-calibration/blob/main/fourier_scale_calibration/fourier_scale_calibration.py
 
+import numpy as np
 from scipy.interpolate import interp1d
 from numbers import Number
 

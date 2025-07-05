@@ -1,0 +1,18 @@
+For installing a clean verion of the required packages, you can use the following command:
+pip freeze | python -c "import sys; [print(line) for line in sys.stdin if ' @ ' not in line and 'git+' not in line and '-e ' not in line]" > requirements.txt
+
+
+For avoiding import issues in the Jupyter notebook, you can use relative imports in your modules. For example, in `fourier_scale_calibration.py`, you can change:
+```python
+from simulate import superpose_deltas
+```
+to:
+```python
+from .simulate import superpose_deltas
+
+But be aware that this requires the script to be run as part of a package, not as a standalone script. If you run it directly, you might still face import errors.
+For a standalone script, you can use:
+```python
+fromm imageanalysis.simulate import superpose_deltas 
+```
+for example.

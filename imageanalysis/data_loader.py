@@ -1,3 +1,9 @@
+""""""""""""""""""""""'""""""
+Data Loader Module
+
+Author: Somar Dibeh
+"""""""""""""""""""""""""""""
+
 import json
 import h5py
 import joblib

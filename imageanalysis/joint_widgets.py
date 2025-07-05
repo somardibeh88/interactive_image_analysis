@@ -193,7 +193,7 @@ def create_widgets():
     apply_calibration_checkbox = Checkbox(value=False, description='Apply to All', layout={'width': '95%'})
     gaussian_checkbox = Checkbox(value=False, description='Gaussian', layout={'width': '95%'})
     double_gaussian_checkbox = Checkbox(value=False, description='Double Gaussian', layout={'width': '95%'})
-    calibrate_region_checkbox = Checkbox(value=False, description='Custom Region', layout={'width': '95%'})
+    calibrate_region_checkbox = Checkbox(value=False, description='Custom Region', style={'description_width': '200px'}, layout={'width': '95%'})
     calibration_checkbox = Checkbox(value=False, description='FFT Calibration', layout={'width': '95%'})
     save_for_figure_checkbox = Checkbox(value=False, description='Save Figure', layout={'width': '95%'}) 
     contrast_checkbox = Checkbox(value=False, description='Contrast', layout={'width': '95%'})

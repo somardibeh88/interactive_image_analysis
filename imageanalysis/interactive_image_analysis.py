@@ -26,11 +26,11 @@ from IPython.display import display, clear_output
 from traitlets import link
 import time
 from ipywidgets import interactive_output, HBox, VBox, FloatSlider, IntSlider, Checkbox, Button, Output, Dropdown, IntText, FloatText, Text
-from data_loader import DataLoader
-from filters import *
-import fourier_scale_calibration as fsc
-from fourier_scale_calibration import *
-from utils import *
+from .data_loader import DataLoader
+from .filters import *
+from . import fourier_scale_calibration as fsc
+from .fourier_scale_calibration import *
+from .utils import *
 from sklearn.cluster import DBSCAN
 from scipy.sparse.csgraph import connected_components
 from scipy.spatial import KDTree
@@ -2578,3 +2578,178 @@ if __name__ == "__main__":
     s = '/home/somar/test /stack.h5'
     image_analysis = InteractiveImageAnalysis(stacks_ssb1[0], metadata_path=None, analysing_features=False, save_images_with_calibrated_scalebar=True, fixed_length_scalebar=True,
                                             clean_graphene_analysis=True, contamination_analysis=False, clusters_analysis=True , defects_analysis=False, font_path=font_path)
+    
+
+
+
+
+
+
+
+
+        # self.line_profile_widgets = self.add_line_profile_widgets()
+    # self.region_profile_widgets = self.add_region_profile_widgets()
+    # def get_VGVOACurrent(self):
+    #     """Get the VG-VOA current from the metadata"""
+    #     if self.metadata is not None:
+    #         metadata = self.metadata[f"metadata_{self.ref_image_index:04d}"]
+    #         vgvoa_current = self.metadata.get_specific_metadata('BP2_^VGVOACurrent', required_keys=['instrument'], data=metadata)
+    #         if len(vgvoa_current) > 0:
+    #             vgvoa_current = vgvoa_current[0]
+    #         else:
+    #             vgvoa_current = 1
+    #             print('No VG-VOA current found in the metadata. Careful, using a default value of 1 ms.')
+    #     else:
+    #         print('No metadata available for this reference image. Please use another image for the FFT calibration.')
+    #     return vgvoa_current
+    
+
+    # def get_dwell_time(self):
+    #     """Get the dwell time from the metadata"""
+    #     if self.metadata is not None:
+    #         metadata = self.metadata[f"metadata_{self.ref_image_index:04d}"]
+    #         dwell_time = self.metadata.get_specific_metadata('pixel_time_us', required_keys=['scan_device_properties'], data=metadata)
+    #         if len(dwell_time) > 0:
+    #             dwell_time = dwell_time[0]
+    #         else:
+    #             dwell_time = 1
+    #             print('No dwell time found in the metadata. Careful, using a default value of 1 ms.')
+    #     else:
+    #         print('No metadata available for this reference image. Please use another image for the FFT calibration.')
+    #     return dwell_time
+    
+
+    # def resize_image(self, image):
+    #     """Enhanced resizing with dynamic factor and method selection"""
+    #     if self.resize_checkbox.value and self.resize_factor_slider.value != 1.0:
+    #         image = image.copy()  # Create a copy to avoid modifying the original
+    #         method = cv2.INTER_CUBIC if self.resize_method_dropdown.value == 'Bicubic' else cv2.INTER_LINEAR
+    #         new_size = (int(image.shape[1] * self.resize_factor_slider.value),
+    #                     int(image.shape[0] * self.resize_factor_slider.value))
+    #         return cv2.resize(image, new_size, interpolation=method)
+    #     return image
+    
+
+    # def add_line_profile_widgets(self):
+    #     """Create widgets for line profile parameters"""
+    #     self.line_x = IntSlider(min=0, max=1650, value=0, description='Line X:')
+    #     self.line_y = IntSlider(min=0, max=1650, value=0, description='Line Y:')
+    #     self.line_length = IntSlider(min=1, max=500, value=0, description='Length:')
+    #     self.line_width = IntSlider(min=1, max=50, value=0, description='Width:')
+    #     self.line_angle = FloatSlider(min=0.2, max=360, value=0, description='Angle:')
+    #     self.save_line_profile_button = Button(description="Save Line Profile")
+    #     self.save_line_profile_button.on_click(self.save_line_profile)
+    #     self.line_profile_name = Text(value='line_profile', description='File name:')
+        
+    #     return VBox([
+    #         HBox([self.line_x, self.line_y]),
+    #         HBox([self.line_length, self.line_width, self.line_angle]),
+    #         HBox([self.save_line_profile_button, self.line_profile_name]),
+    #     ])
+
+    # def add_region_profile_widgets(self):
+    #     """Create widgets for region profile parameters"""
+    #     self.region_profile_x = IntSlider(min=0, max=1650, value=0, description='Region X:')
+    #     self.region_profile_y = IntSlider(min=0, max=1650, value=0, description='Region Y:')
+    #     self.region_profile_width = IntSlider(min=1, max=500, value=0, description='Width:')
+    #     self.region_profile_height = IntSlider(min=1, max=500, value=0, description='Height:')
+    #     self.save_region_profile_button = Button(description="Save Region Data")
+    #     self.save_region_profile_button.on_click(self.save_region_profile)
+    #     self.region_profile_name = Text(value='region_profile', description='File name:')
+        
+    #     return VBox([
+    #         HBox([self.region_profile_x, self.region_profile_y]),
+    #         HBox([self.region_profile_width, self.region_profile_height]),
+    #         HBox([self.save_region_profile_button, self.region_profile_name]),])
+    
+
+    # def get_line_profile(self, image, x, y, length, width, angle):
+    #     """Calculate intensity profile along a line"""
+    #     from skimage.measure import profile_line
+        
+    #     # Convert to image coordinates (row, column)
+    #     start = (y, x)  # (row, column)
+        
+    #     # Calculate end point in image coordinates
+    #     angle_rad = np.deg2rad(angle)
+    #     dx = length * np.cos(angle_rad)
+    #     dy = length * np.sin(angle_rad)
+    #     end = (y + dy, x + dx)  # (row, column)
+        
+    #     # Get profile with specified width
+    #     profile = profile_line(image, start, end, 
+    #                         linewidth=width, 
+    #                         reduce_func=np.mean)
+    #     # Considering dwell time and VG-VOA current
+    #     dwell_time = self.get_dwell_time()
+    #     vgvoa_current = self.get_VGVOACurrent()
+    #     profile = profile / ( dwell_time * vgvoa_current)
+    #     return profile
+
+
+
+    # def get_region_profile(self, image, x, y, w, h):
+    #     """Calculate average intensity profile in a region"""
+    #     region = image[y:y+h, x:x+w]
+    #     # Considering dwell time and VG-VOA current
+    #     dwell_time = self.get_dwell_time()
+    #     vgvoa_current = self.get_VGVOACurrent()
+    #     print(dwell_time, vgvoa_current)
+    #     region = region / (dwell_time * vgvoa_current)
+    #     print('region', region.mean(), region.shape, type(region))
+    #     return region.mean()  # we can also specifiy alonge which axis to get the profile using np.mean(axis=0) or np.mean(axis=1)
+
+
+
+    # def save_line_profile(self, b):
+    #     """Save line profile plot and data"""
+    #     params = {
+    #         'image': self.stack.raw_data[self.slice_slider.value],
+    #         'x': self.line_x.value,
+    #         'y': self.line_y.value,
+    #         'length': self.line_length.value,
+    #         'width': self.line_width.value,
+    #         'angle': self.line_angle.value}
+        
+    #     profile = self.get_line_profile(**params)
+    #     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        
+    #     # Save plot
+    #     fig, ax = plt.subplots(figsize=(8, 4))
+    #     ax.plot(profile)
+    #     ax.set_title(f"Line Intensity Profile\n{params['length']}px length, {params['width']}px width")
+    #     ax.set_xlabel("Position along line")
+    #     ax.set_ylabel("Intensity")
+    #     plt.savefig(f"line_profile_{timestamp}.png")
+    #     plt.close()
+    #     line_profile_name = self.line_profile_name.value
+    #     # Save data
+    #     np.savetxt(f"{line_profile_name}.csv", profile, delimiter=",")
+
+    
+
+    # def save_region_profile(self, b):
+    #     """Save region profile data and marked image"""
+    #     params = {
+    #         'image': self.stack.raw_data[self.slice_slider.value],
+    #         'x': self.region_profile_x.value,
+    #         'y': self.region_profile_y.value,
+    #         'w': self.region_profile_width.value,
+    #         'h': self.region_profile_height.value}
+        
+    #     profile = self.get_region_profile(**params)
+    #     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        
+    #     # Save marked image
+    #     fig, ax = plt.subplots()
+    #     ax.imshow(params['image'], cmap='gray')
+    #     rect = plt.Rectangle((params['x'], params['y']), params['w'], params['h'],
+    #                         linewidth=2, edgecolor='r', facecolor='none')
+    #     ax.add_patch(rect)
+    #     plt.savefig(f"region_marked_{timestamp}.png")
+    #     plt.close()
+
+    #     region_profile_name = f"{self.region_profile_name.value}"
+
+    #     # Save data
+    #     np.savetxt(f"{region_profile_name}_w{self.region_profile_width.value}_h{self.region_profile_height.value}.csv", [profile], delimiter=",")

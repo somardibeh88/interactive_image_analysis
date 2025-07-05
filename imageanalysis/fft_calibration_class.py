@@ -1,20 +1,26 @@
+
+"""""""""""""""""
+Module for displaying and calibrating images using Fourier space calibration
+Author: Somar Dibeh
+"""""""""""""""""
+
 from ipywidgets import (interactive_output, HBox, VBox, FloatSlider, IntSlider, 
                         Button, Output, Dropdown, IntText, FloatText, 
                         Text, HTML, Tab, Layout, GridBox)
 from IPython.display import display, clear_output
 from matplotlib import pyplot as plt
 import numpy as np
-import fourier_scale_calibration as fsc
-from fourier_scale_calibration import *
+from . import fourier_scale_calibration as fsc
+from .fourier_scale_calibration import *
 from matplotlib.offsetbox import AnchoredText
 import matplotlib.patches as patches
 import json
 import h5py
 import os
 import cv2
-from data_loader import DataLoader
-from filters import *
-from joint_widgets import *
+from .data_loader import DataLoader
+from .filters import *
+from .joint_widgets import *
 
 plt.rcParams.update({'font.size': 10})
 
@@ -135,13 +141,16 @@ class FFTCalibration():
                 align_items='stretch'
             )
         )
+
         
+        self.calibrate_region_checkbox_fft_calib.layout = Layout(grid_column='span 2', width='100%')
         # Region Selection Tab
         region_grid = GridBox(
             children=[
                 # First row: Checkbox spanning both columns
                 self.calibrate_region_checkbox_fft_calib,
-                HTML("", layout={'grid_column': 'span 1'}),  # Empty cell to complete row
+                
+                HTML(" ", layout={'grid_column': 'span 2'}), 
                 
                 # Second row: Position header
                 HTML("<b>Position (px)</b>", layout={'grid_column': 'span 2'}),
