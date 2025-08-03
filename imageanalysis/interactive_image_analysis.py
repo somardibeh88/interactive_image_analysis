@@ -30,7 +30,7 @@ from .data_loader import DataLoader
 from .filters import *
 from . import fourier_scale_calibration as fsc
 from .fourier_scale_calibration import *
-from .utils import *
+from .utils_old import *
 from sklearn.cluster import DBSCAN
 from scipy.sparse.csgraph import connected_components
 from scipy.spatial import KDTree
@@ -55,7 +55,7 @@ class InteractiveImageAnalysis():
     
     INTERPOLATION_MAP = {'Bilinear': cv2.INTER_LINEAR,
                          'Bicubic': cv2.INTER_CUBIC,
-                         'Lanczos': cv2.INTER_LANCZOS4,
+                         'Lanczos': cv2.INTER_LANCZOS4, 
                          'Nearest': cv2.INTER_NEAREST,
                          'Area': cv2.INTER_AREA,}
     # Add FFT order control

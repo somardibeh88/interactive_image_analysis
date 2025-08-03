@@ -1,0 +1,1459 @@
+"""
+Feature Analysis Class for Image Processing
+Author: Somar Dibeh
+Date: 2025-06-24
+"""
+
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QApplication
+import matplotlib
+matplotlib.use("Qt5Agg")
+import os
+import numpy as np
+import pandas as pd
+import ipywidgets as widgets
+import matplotlib.pyplot as plt
+from matplotlib import patheffects
+from matplotlib.offsetbox import AnchoredText
+from matplotlib.font_manager import FontProperties 
+import matplotlib.patches as patches
+from datetime import datetime
+from IPython.display import display, clear_output
+import time
+from ipywidgets import interactive_output, HBox, VBox, FloatSlider, IntSlider, Checkbox, Output, Dropdown
+from data_loader import DataLoader
+from filters import *
+from imageanalysis.utils.utils_feature_analysis import *
+from sklearn.cluster import DBSCAN
+from scipy.sparse.csgraph import connected_components
+import imageanalysis.fft_calibration_class as fc
+from imageanalysis.fft_calibration_class import *
+from joint_widgets import create_widgets
+from imageanalysis.calibrated_images_class import CalibratedImages
+
+cv2.ocl.setUseOpenCL(False)
+
+
+class FeaturesAnalysis():
+
+    INTERPOLATION_MAP = {'Bilinear': cv2.INTER_LINEAR,
+                        'Bicubic': cv2.INTER_CUBIC,
+                        'Lanczos': cv2.INTER_LANCZOS4,
+                        'Nearest': cv2.INTER_NEAREST,
+                        'Area': cv2.INTER_AREA,}
+    
+    def __init__(self, stack_path=None, font_path=None,):
+        
+        widget_dicts = create_widgets()
+        for key, value in widget_dicts.items():
+            setattr(self, key, value)
+        self.stack_path = stack_path
+        self.font_path = font_path
+        self.stack = DataLoader(self.stack_path) if self.stack_path else []
+        self.metadata = self.stack.raw_metadata if self.stack else {}
+        self.calibration_factor = None
+        self.ref_fov = None
+        self.calibration_display = Output()
+        self.results = ModuleNotFoundError
+        self.slice_slider = IntSlider(min=0, max=len(self.stack.raw_data)-1, value=0, step=1, description='Slice', continuous_update=False)
+        self.image_selector = Dropdown(options=[(f'Image {i}', i) for i in range(len(self.stack.raw_data))] if self.stack else [], 
+                                      value=0, description='Image:')
+        self.ref_image_index = self.image_selector.value
+        self.update_reference_image({'new': self.ref_image_index}) 
+
+        # Setup FFT calibration (but don't display it yet)
+        self.fft_calibration = FFTCalibration(self.stack, self.stack_path, display_fft=False)
+        self.fft_calibration.calibration_controls.layout.display = 'none'  
+
+
+        self.setup_observers()
+        self.save_button.on_click(self.save_data)
+
+        # Create tabs
+        self.tabs = Tab()
+        self.tabs.children = [
+            VBox([self.image_filtering_tab()], layout={'padding': '5px'}),
+            VBox([self.create_calibration_tab()], layout={'padding': '5px'}),
+            VBox([ self.first_thresholding_tab()], layout={'padding': '5px'}),
+            VBox([self.second_thresholding_tab()], layout={'padding': '5px'}),
+            VBox([self.feature_analysis_tab()], layout={'padding': '5px'}),
+            VBox([self.create_save_tab()])
+            ]
+        self.tabs.set_title(0, 'Image Enhancement')
+        self.tabs.set_title(1, 'Calibration')
+        self.tabs.set_title(2, '1st thresholding step')
+        self.tabs.set_title(3, '2nd thresholding step')
+        self.tabs.set_title(4, 'Feature Analysis')
+        self.tabs.set_title(5, 'Save & Export')
+
+        display(VBox([self.tabs, self._interactive_image_analysis()],layout={ 'width': '1000px', 'padding': '5px'}))
+
+
+    def image_filtering_tab(self):
+        # Define grid children in [checkbox, control] pairs
+        grid_children = [
+            [self.contrast_checkbox, self.contrast_slider],
+            [self.gaussian_checkbox, self.gaussian_sigma_slider],
+            [self.double_gaussian_checkbox, VBox([
+                self.double_gaussian_slider1, 
+                self.double_gaussian_slider2,
+                self.double_gaussian_weight_slider
+            ])],
+
+            [self.brightness_checkbox, self.brightness_slider],
+
+            [self.kernel_size_checkbox, self.kernel_size_slider],
+            [self.resize_checkbox, VBox([
+                self.resize_factor_slider, 
+                self.resize_method_dropdown
+            ])],
+        ]
+        
+        for pair in grid_children:
+            # Set checkbox layout
+            if isinstance(pair[0], Checkbox):
+                pair[0].layout.width = 'auto'
+                pair[0].layout.margin = '0 15px 0 0'
+            
+            # Set slider layout
+            if isinstance(pair[1], (FloatSlider, IntSlider)):
+                pair[1].layout.width = '300px'
+                pair[1].layout.flex = '1 1 auto'
+            
+            # Set container layout
+            if isinstance(pair[1], (VBox, HBox)):
+                pair[1].layout.width = 'auto'
+                pair[1].layout.flex_flow = 'column'
+                pair[1].layout.align_items = 'stretch'
+                
+                # Set child slider layouts
+                for child in pair[1].children:
+                    if isinstance(child, (FloatSlider, IntSlider)):
+                        child.layout.width = '300px'
+                        child.layout.flex = '1 1 auto'
+        
+        # Create grid rows
+        grid_rows = [HBox([pair[0], pair[1]], 
+                     layout=Layout(
+                         justify_content='space-between',
+                         align_items='center',
+                         width='100%',
+                         margin='5px 0'
+                     )) for pair in grid_children]
+
+        return VBox([
+            HTML("<h4 style='margin-bottom: 15px;'>Image Enhancement</h4>"),
+            VBox(grid_rows, layout=Layout(
+                width='100%',
+                padding='10px',
+                border='1px solid #e0e0e0',
+                border_radius='5px'
+            )),
+            HTML("<h4 style='margin-top: 20px; margin-bottom: 15px;'>Display Options</h4>"),
+            HBox([
+                VBox([self.slice_slider], 
+                     layout=Layout(width='45%', margin='0 10px 0 0')),
+                VBox([self.colormap_dropdown], 
+                     layout=Layout(width='45%', margin='0 0 0 10px'))
+            ], layout=Layout(
+                width='100%',
+                justify_content='space-between',
+                margin='10px 0'
+            ))
+        ], layout=Layout(padding='15px'))
+
+
+
+    def create_calibration_tab(self):
+            def toggle_calibration(change):
+                if change['new']:
+                    self.fft_calibration.calibration_controls.layout.display = ''
+                    # Trigger initial calibration
+                    self.fft_calibration.fft_calibrate()
+                else:
+                    self.fft_calibration.calibration_controls.layout.display = 'none'
+                    with self.fft_calibration.calibration_display:
+                        clear_output(wait=True)
+            
+            # Use the FFT class's checkbox instead of creating a new one
+            self.fft_calibration.calibration_checkbox_fft_calib.observe(toggle_calibration, names='value')
+            
+            return VBox([
+                self.fft_calibration.calibration_checkbox_fft_calib,
+                self.fft_calibration.calibration_controls
+            ], layout=Layout(padding='10px'))
+        
+
+    def first_thresholding_tab(self):
+        # Define rows with their widgets
+        rows = [
+            [self.analysis_type_dropdown],  # Single widget row
+            [self.threshold_checkbox, self.threshold_slider],
+            [self.min_clean_cont_area_checkbox, self.min_clean_cont_area_slider],
+            [self.max_clean_cont_area_checkbox, self.max_clean_cont_area_slider],
+            [self.dilation_checkbox, self.dilation_slider],
+            [self.erosion_checkbox, self.erosion_slider],
+            [self.opening_checkbox, self.opening_slider],
+            [self.closing_checkbox, self.closing_slider],
+
+        ]
+        
+        # Process each widget in each row
+        for row in rows:
+            for widget in row:
+                # Apply consistent styling to all widgets
+                if isinstance(widget, Checkbox):
+                    widget.layout.width = 'auto'
+                    widget.layout.margin = '0 15px 0 0'
+                elif isinstance(widget, (FloatSlider, IntSlider)):
+                    widget.layout.width = '300px'
+                    widget.layout.flex = '1 1 auto'
+                elif isinstance(widget, Dropdown):
+                    widget.layout.width = 'auto'
+
+        # Create grid rows with appropriate layout
+        grid_rows = []
+        for row in rows:
+            if len(row) == 1:
+                # Center single widgets
+                hbox = HBox(row, layout=Layout(
+                    justify_content='center',
+                    width='100%',
+                    margin='5px 0'
+                ))
+            else:
+                # Space between multiple widgets
+                hbox = HBox(row, layout=Layout(
+                    justify_content='space-between',
+                    align_items='center',
+                    width='100%',
+                    margin='5px 0'
+                ))
+            grid_rows.append(hbox)
+
+        return VBox([
+            HTML("<h4 style='margin-bottom: 15px;'>1st Morphological Operations</h4>"),
+            VBox(grid_rows, layout=Layout(
+                width='100%',
+                padding='10px',
+                border='1px solid #e0e0e0',
+                border_radius='5px'
+            )),
+            HTML("<h4 style='margin-top: 20px; margin-bottom: 15px;'>Display Options</h4>"),
+            HBox([
+                VBox([self.slice_slider], 
+                    layout=Layout(width='45%', margin='0 10px 0 0')),
+                VBox([self.colormap_dropdown], 
+                    layout=Layout(width='45%', margin='0 0 0 10px'))
+            ], layout=Layout(
+                width='100%',
+                justify_content='space-between',
+                margin='10px 0'
+            ))
+        ], layout=Layout(padding='15px'))
+
+
+    def second_thresholding_tab(self):
+        grid_children = [
+            [self.contour_retrieval_dropdown, self.contour_approximation_dropdown],
+            [self.threshold_sa_checkbox, self.threshold_sa_slider],
+            [self.min_cluster_area_checkbox, self.min_cluster_area_slider],
+            [self.max_cluster_area_checkbox, self.max_cluster_area_slider],
+            [self.dilation2_checkbox, self.dilation2_slider],
+            [self.erosion2_checkbox, self.erosion2_slider],
+            [self.opening2_checkbox, self.opening2_slider],
+            [self.closing2_checkbox, self.closing2_slider],
+
+        ]
+        for pair in grid_children:
+            # Set checkbox layout
+            if isinstance(pair[0], Checkbox):
+                pair[0].layout.width = 'auto'
+                pair[0].layout.margin = '0 15px 0 0'
+            
+            # Set slider layout
+            if isinstance(pair[1], (FloatSlider, IntSlider)):
+                pair[1].layout.width = '300px'
+                pair[1].layout.flex = '1 1 auto'
+
+        grid_rows = [HBox([pair[0], pair[1]], 
+                     layout=Layout(
+                         justify_content='space-between',
+                         align_items='center',
+                         width='100%',
+                         margin='5px 0'
+                     )) for pair in grid_children]
+
+
+        return VBox([
+            HTML("<h4 style='margin-bottom: 15px;'>2nd Morphological Operations</h4>"),
+            VBox(grid_rows, layout=Layout(
+                width='100%',
+                padding='10px',
+                border='1px solid #e0e0e0',
+                border_radius='5px'
+            )),
+            HTML("<h4 style='margin-top: 20px; margin-bottom: 15px;'>Display Options</h4>"),
+            HBox([
+                VBox([self.slice_slider], 
+                     layout=Layout(width='45%', margin='0 10px 0 0')),
+                VBox([self.colormap_dropdown], 
+                     layout=Layout(width='45%', margin='0 0 0 10px'))
+            ], layout=Layout(
+                width='100%',
+                justify_content='space-between',
+                margin='10px 0'
+            ))
+        ], layout=Layout(padding='15px'))
+    
+
+
+    def feature_analysis_tab(self):
+        # Define grid children in [checkbox, control] pairs
+        grid_children = [
+            [self.feature_analysis_type_dropdown],
+            [self.min_isolation_checkbox, self.min_isolation_slider],
+            [self.min_circularity_checkbox, self.min_circularity_slider],
+            [self.make_circular_thresh_checkbox, self.make_circular_thresh_slider],
+            [self.single_atom_clusters_definer_checkbox, self.single_atom_clusters_definer_slider],
+        ]
+        
+        for pair in grid_children:
+            if len(pair) > 1:  
+                # Set checkbox layout
+                if isinstance(pair[0], Checkbox):
+                    pair[0].layout.width = 'auto'
+                    pair[0].layout.margin = '0 15px 0 0'
+                
+                # Set slider layout
+                if isinstance(pair[1], (FloatSlider, IntSlider)):
+                    pair[1].layout.width = '300px'
+                    pair[1].layout.flex = '1 1 auto'
+                
+                # Set container layout
+                if isinstance(pair[1], (VBox, HBox)):
+                    pair[1].layout.width = 'auto'
+                    pair[1].layout.flex_flow = 'column'
+                    pair[1].layout.align_items = 'stretch'
+                    
+                    # Set child slider layouts
+                    for child in pair[1].children:
+                        if isinstance(child, (FloatSlider, IntSlider)):
+                            child.layout.width = '300px'
+                            child.layout.flex = '1 1 auto'
+        
+        # Create grid rows
+        grid_rows = [HBox([pair[0], pair[1]], 
+                     layout=Layout(
+                         justify_content='space-between',
+                         align_items='center',
+                         width='100%',
+                         margin='5px 0'
+                     )) for pair in grid_children if len(pair) > 1]
+
+        return VBox([
+            HTML("<h4 style='margin-bottom: 15px;'>Features type</h4>"),
+            VBox(grid_children[0], layout=Layout(
+                width='100%',
+                padding='10px',
+                border='1px solid #e0e0e0',
+                border_radius='5px'
+            )),
+            HTML("<h4 style='margin-bottom: 15px;'>Feature Analysis Control</h4>"),
+            VBox(grid_rows, layout=Layout(
+                width='100%',
+                padding='10px',
+                border='1px solid #e0e0e0',
+                border_radius='5px'
+            )),
+            HTML("<h4 style='margin-top: 20px; margin-bottom: 15px;'>Display Options</h4>"),
+            HBox([
+                VBox([self.slice_slider], 
+                     layout=Layout(width='45%', margin='0 10px 0 0')),
+                VBox([self.colormap_dropdown], 
+                     layout=Layout(width='45%', margin='0 0 0 10px'))
+            ], layout=Layout(
+                width='100%',
+                justify_content='space-between',
+                margin='10px 0'
+            ))
+        ], layout=Layout(padding='15px'))
+
+
+
+    def create_save_tab(self):
+        return VBox([
+            HTML("<h4 style='margin-bottom: 15px;'>Save & Export</h4>"),
+            HBox([
+                VBox([self.image_name, self.filename_input], layout=Layout(width='45%', margin='0 10px 0 0')),
+                VBox([self.save_image_button, self.save_button], layout=Layout(width='45%', margin='0 0 0 10px'))
+            ], layout=Layout(
+                width='100%',
+                justify_content='space-between',
+                margin='10px 0'
+            )),
+            self.calibration_display
+        ], layout=Layout(padding='15px'))
+
+
+
+    def setup_observers(self):
+        # Map checkboxes to their controlled widgets
+        controls_map = {
+            self.contrast_checkbox: [self.contrast_slider],
+            self.gaussian_checkbox: [self.gaussian_sigma_slider],
+            self.double_gaussian_checkbox: [
+                self.double_gaussian_slider1, 
+                self.double_gaussian_slider2,
+                self.double_gaussian_weight_slider
+            ],
+            self.brightness_checkbox: [self.brightness_slider],
+            self.kernel_size_checkbox: [self.kernel_size_slider],
+            self.resize_checkbox: [self.resize_factor_slider, self.resize_method_dropdown],
+            self.threshold_checkbox: [self.threshold_slider],
+            self.dilation_checkbox: [self.dilation_slider],
+            self.erosion_checkbox: [self.erosion_slider],
+            self.opening_checkbox: [self.opening_slider],
+            self.closing_checkbox: [self.closing_slider],
+            self.boundary_checkbox: [self.boundary_slider],
+            self.gradient_checkbox: [self.gradient_slider],
+            self.threshold_sa_checkbox: [self.threshold_sa_slider],
+            self.dilation2_checkbox: [self.dilation2_slider],
+            self.erosion2_checkbox: [self.erosion2_slider],
+            self.opening2_checkbox: [self.opening2_slider],
+            self.closing2_checkbox: [self.closing2_slider],
+            self.boundary2_checkbox: [self.boundary2_slider],
+            self.gradient2_checkbox: [self.gradient2_slider],
+            self.min_isolation_checkbox: [self.min_isolation_slider],
+            self.min_clean_cont_area_checkbox: [self.min_clean_cont_area_slider],
+            self.max_clean_cont_area_checkbox: [self.max_clean_cont_area_slider],
+            self.min_cluster_area_checkbox: [self.min_cluster_area_slider],
+            self.max_cluster_area_checkbox: [self.max_cluster_area_slider],
+            self.min_circularity_checkbox: [self.min_circularity_slider],
+            self.make_circular_thresh_checkbox: [self.make_circular_thresh_slider],
+            self.single_atom_clusters_definer_checkbox: [self.single_atom_clusters_definer_slider],
+        }
+
+        # Set initial visibility
+        for checkbox, widgets in controls_map.items():
+            for widget in widgets:
+                try:
+                    widget.layout.display = '' if checkbox.value else 'none'
+                except AttributeError:
+                    print(f"Warning: Widget {widget} not found")
+        
+        # Create observers
+        for checkbox, widgets in controls_map.items():
+            checkbox.observe(
+                lambda change, w=widgets: self.toggle_visibility(change, w), 
+                names='value'
+            )
+
+    def toggle_visibility(self, change, widgets):
+        """Toggle widget visibility based on checkbox state"""
+        display_value = '' if change['new'] else 'none'
+        for widget in widgets:
+            try:
+                widget.layout.display = display_value
+            except AttributeError:
+                print(f"Warning: Could not set visibility for {widget}")
+
+
+    def update_reference_image(self, change):
+        """Update reference image when selector changes"""
+        self.ref_image_index = change['new']
+        self.ref_image = self.stack.raw_data[self.ref_image_index]
+        self.ref_image_shape = self.ref_image.shape[0]
+
+
+
+
+    def mask_color(self, mask_color):
+        if mask_color == 'red':
+            return [255, 0, 0]
+        elif mask_color == 'white':
+            return [255, 255, 255]
+        elif mask_color == 'black':
+            return [0, 0, 0]
+        elif mask_color == 'green':
+            return [0, 255, 0]
+        elif mask_color == 'blue':
+            return [0, 0, 255]
+        else:
+            return [0, 0, 0]
+
+
+
+    # # Morphological operations
+    def apply_morphological_operations(self, thresh, iteration_opening, iteration_closing, iteration_dilation, iteration_erosion, 
+                                       iteration_gradient, iteration_boundary, kernel):
+        if self.erosion_checkbox.value:
+            thresh = erode(thresh, iteration_erosion, kernel)
+        if self.dilation_checkbox.value:
+            thresh = dilate(thresh, iteration_dilation, kernel)
+        if self.opening_checkbox.value:
+            thresh = opening(thresh, iteration_opening, kernel)
+        if self.closing_checkbox.value:
+            thresh = closing(thresh, iteration_closing, kernel)
+        if self.gradient_checkbox.value:
+            thresh= gradient(thresh, iteration_gradient, kernel)
+        if self.boundary_checkbox.value:
+            thresh = boundary_extraction(thresh, iteration_boundary, kernel)
+
+        return thresh
+    
+
+
+    def apply_morphological_operations2(self, image, opening2, closing2, dilation2, erosion2, gradient2, boundary2, kernel):
+        if self.erosion2_checkbox.value:
+            image = erode(image, erosion2, kernel)
+        if self.dilation2_checkbox.value:
+            image = dilate(image, dilation2, kernel)
+        if self.opening2_checkbox.value:
+            image = opening(image, opening2, kernel)
+        if self.closing2_checkbox.value:
+            image = closing(image, closing2, kernel)
+        if self.gradient2_checkbox.value:
+            image = gradient(image, gradient2, kernel)
+        if self.boundary2_checkbox.value:
+            image = boundary_extraction(image, boundary2, kernel)
+        return image
+    
+
+
+    def apply_filters(self, image, gamma, clahe_clip, clahe_tile, contrast, brightness, sigmoid_alpha, sigmoid_beta):
+        if image.dtype != np.uint8:
+            image = cv2.normalize(image, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+
+        # Apply contrast enhancement
+        if self.contrast_checkbox.value:
+            image = improve_contrast(image, contrast)  #Global contrast correction across the image
+
+        # Apply CLAHE (Contrast Limited Adaptive Histogram Equalization) and Gamma correction (for brightness adjustment)
+         #Local contrast correction across each tile of the image
+        if self.clahe_checkbox.value:
+            image = apply_clahe(image, clahe_clip, clahe_tile)
+
+        if self.gamma_checkbox.value:
+            image = apply_gamma_correction(image, gamma)
+
+        # New filters
+        if self.brightness_checkbox.value:
+            image = cv2.add(image, brightness)
+
+        if self.sigmoid_checkbox.value:
+            image = apply_sigmoid_contrast(image, sigmoid_alpha, sigmoid_beta)
+
+        if self.log_transform_checkbox.value:
+            image = apply_log_transform(image)
+
+        if self.exp_transform_checkbox.value:
+            image = apply_exp_transform(image, gamma)
+
+        return image
+    
+
+    def apply_gaussian_double_gaussian(self, image, gaussian_sigma, double_gaussian_sigma1, double_gaussian_sigma2, double_gaussian_weight, kernel):
+        if image.dtype != np.uint8:
+            image = cv2.normalize(image, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+
+        if self.gaussian_checkbox.value:
+            kernel_tuple = (kernel, kernel)  # Converting integer kernel size to tuple
+            image = cv2.GaussianBlur(image, kernel_tuple, gaussian_sigma)
+
+        # Apply Double Gaussian Filter
+        if self.double_gaussian_checkbox.value:
+            image = double_gaussian(image, double_gaussian_sigma1, double_gaussian_sigma2, double_gaussian_weight)
+        return image
+
+
+    def calculate_isolation(self, contours, nm_per_pixel, isolation_distance):
+        """Optimized isolation check with spatial partitioning + multiprocessing"""
+        from scipy.spatial import KDTree
+        from multiprocessing import Pool, cpu_count
+        n = len(contours)
+        isolation_mask = np.ones(n, dtype=bool)
+
+        if n < 2:
+            return isolation_mask
+
+        isolation_px = max(isolation_distance / nm_per_pixel, 0.1)
+
+        # Create bounding circles and spatial tree
+        circles = [cv2.minEnclosingCircle(c) for c in contours]
+        centers = np.array([(x, y) for (x, y), _ in circles])
+        radii = np.array([r for _, r in circles])
+
+        tree = KDTree(centers)
+        pairs = list(tree.query_pairs(np.max(radii) * 2 + isolation_px * 2))
+
+        # Use multiprocessing for pair checks
+        with Pool(processes=12) as pool:     # I am using 12 processes, you can adjust this based on your CPU cores using cpu_count() instead
+            results = pool.starmap(
+                process_pair,
+                [
+                    (pair, contours, centers, radii, nm_per_pixel, isolation_px, contour_min_distance)
+                    for pair in pairs
+                ]
+            )
+
+        for result in results:
+            if result is not None:
+                i, j = result
+                isolation_mask[i] = False
+                isolation_mask[j] = False
+
+        return isolation_mask
+
+
+    def compute_all_areas(self,contours, nm2_per_pixel2):
+        from multiprocessing import Pool, cpu_count
+
+        with Pool(processes=12) as pool:
+            areas = pool.starmap(compute_area, [(cnt, nm2_per_pixel2) for cnt in contours])
+        return areas
+
+
+    def compute_all_shape_metrics(self, valid_contours, nm_per_pixel):
+        from multiprocessing import Pool, cpu_count
+        args = [
+            (cnt, nm_per_pixel,
+            measure_circularity,
+            measure_roundness,
+            measure_feret_diameter,
+            measure_aspect_ratio)
+            for cnt in valid_contours
+        ]
+        with Pool(processes=12) as pool:
+            results = pool.map(compute_shape_metrics, args)
+
+        # Extract each metric
+        circularity = [r['circularity'] for r in results]
+        roundness = [r['roundness'] for r in results]
+        feret_diameter = [r['feret_diameter'] for r in results]
+        aspect_ratio = [r['aspect_ratio'] for r in results]
+        return circularity, roundness, feret_diameter, aspect_ratio
+    
+    # def calculate_isolation(self, contours, nm_per_pixel, isolation_distance):
+    #     """Optimized isolation check with spatial partitioning"""
+    #     from scipy.spatial import KDTree
+
+    #     n = len(contours)
+    #     isolation_mask = np.ones(n, dtype=bool)
+        
+    #     if n < 2:
+    #         return isolation_mask
+        
+    #     isolation_px = max(isolation_distance / nm_per_pixel, 0.1)
+        
+    #     # Create spatial index using bounding circles
+    #     circles = [cv2.minEnclosingCircle(c) for c in contours]
+    #     centers = np.array([(x, y) for (x, y), _ in circles])
+    #     radii = np.array([r for _, r in circles])
+        
+    #     # Find potential neighbors using spatial partitioning
+    #     tree = KDTree(centers)
+    #     pairs = tree.query_pairs(np.max(radii) * 2 + isolation_px * 2)
+        
+    #     # Check only potentially close pairs
+    #     for i, j in pairs:
+    #         contour_i_area = cv2.contourArea(contours[i]) * nm_per_pixel**2
+    #         contour_j_area = cv2.contourArea(contours[j]) * nm_per_pixel**2
+    #         if contour_i_area <0.025 or contour_j_area < 0.025:
+    #             continue
+    #         if (np.linalg.norm(centers[i] - centers[j]) - (radii[i] + radii[j])) > isolation_px:
+    #             continue
+            
+    #         dist = self.contour_min_distance(contours[i], contours[j])
+    #         if dist <= isolation_px:
+    #             isolation_mask[i] = False
+    #             isolation_mask[j] = False
+        
+    #     return isolation_mask
+
+
+
+    def analyse_features(self, threshold, threshold_sa, gamma, clahe_clip, clahe_tile, gaussian_sigma, contrast, min_clean_cont_area, min_cluster_area,
+            max_cluster_area, max_clean_cont_area, double_gaussian_sigma1, double_gaussian_sigma2, double_gaussian_weight, 
+            iteration_opening, iteration_closing, iteration_dilation, iteration_erosion, iteration_gradient, min_circularity, isolation_distance,
+            iteration_boundary, opening2, closing2, dilation2, erosion2, gradient2, boundary2, sa_cluster_definer,
+            brightness, sigmoid_alpha, sigmoid_beta, exp_transform, log_transform, make_circular,
+            contour_retrieval_modes, contour_approximation_methods, resize_factor, resize_method, colormap=None, slice_number=None, kernel=None, masked_color=None, display_images=True):
+        """
+        Full function with circularity filtering and isolated atom detection
+        isolation_distance: Minimum pixel distance between atoms to consider them isolated (default 15)
+        """
+        import cv2
+        from scipy.signal import find_peaks
+        with self.calibration_display:
+            clear_output(wait=True)
+
+        original_image = self.stack.raw_data[slice_number]
+        nm_per_pixel, nm2_per_pixel2 = self.fft_calibration.get_calibrated_image(original_image, slice_number)
+
+        # Preprocess the image by applying a smoothing to prepare for thresholding
+        img = cv2.normalize(original_image, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+
+        # Resize if enabled
+        if self.resize_checkbox.value:
+            interpolation_method = self.INTERPOLATION_MAP[self.resize_method_dropdown.value]
+            img = cv2.resize(img, (int(img.shape[1] * self.resize_factor_slider.value), 
+                            int(img.shape[0] * self.resize_factor_slider.value)), 
+                            interpolation=interpolation_method)
+            resize_factor = self.resize_factor_slider.value
+        else:
+            resize_factor = 1.0
+        
+        # Compute effective pixel size after resizing
+        nm_per_pixel = nm_per_pixel / resize_factor
+        nm2_per_pixel2 = nm2_per_pixel2 / (resize_factor ** 2)
+
+
+        if self.gaussian_checkbox.value or self.double_gaussian_checkbox.value:
+            # Apply Gaussian and/or Double Gaussian filters
+            img = self.apply_gaussian_double_gaussian(img, gaussian_sigma, double_gaussian_sigma1, double_gaussian_sigma2, double_gaussian_weight, kernel)
+        
+        # Improve visualization of the image, the filtered image won't be used for analysis rather the original image will be used. This is just to see what we are analyzing
+        image = self.apply_filters(img, gamma, clahe_clip, clahe_tile, contrast, brightness, sigmoid_alpha, sigmoid_beta)
+
+        # Determine analysis type from dropdown
+        analysis_type = self.analysis_type_dropdown.value
+        clean_graphene_analysis = (analysis_type == 'Clean_area_analysis')
+        contamination_analysis = (analysis_type == 'Contaminated_area_analysis')
+        
+        # Determine feature analysis type
+        feature_analysis_type = self.feature_analysis_type_dropdown.value
+        clusters_sa_analysis = (feature_analysis_type == 'Single_atom_clusters_analysis')
+        defects_analysis = (feature_analysis_type == 'Defects_analysis')
+
+        # Thresholding and morphology
+        thresh_type = cv2.THRESH_BINARY_INV if clean_graphene_analysis else cv2.THRESH_BINARY
+        thresh_value, thresh = cv2.threshold(img, threshold, 255, thresh_type)
+        percentile_threshold = np.sum(img<=thresh_value) / img.size * 100
+        print(f"1st threshold value: {thresh_value}, Percentile: {percentile_threshold:.2f}%")
+        thresh = self.apply_morphological_operations(thresh, iteration_opening, iteration_closing, iteration_dilation,
+                                                    iteration_erosion, iteration_gradient, iteration_boundary, kernel)
+
+        # Clean area detection
+        contours, _ = cv2.findContours(thresh.astype(np.uint8), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_TC89_L1)
+        # contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        valid_contours = [cnt for cnt in contours if min_clean_cont_area <= (cv2.contourArea(cnt) * nm2_per_pixel2) < max_clean_cont_area]
+        contour_mask = np.zeros_like(img).astype(np.uint8)
+        cv2.drawContours(contour_mask, valid_contours, -1, 255, thickness=cv2.FILLED)
+
+        # Cluster/atom detection with isolation filtering
+        img = img.astype(np.uint8)
+        print(f"img dtype: {img.dtype}, shape: {img.shape}")
+        print(f"mask dtype: {contour_mask.dtype}, shape: {contour_mask.shape}")
+
+        masked_clean_image = cv2.bitwise_and(img, img, mask=contour_mask)
+
+        if clusters_sa_analysis:
+            thresh_value2, thresh_sa = cv2.threshold(masked_clean_image, threshold_sa, 255, cv2.THRESH_BINARY)
+        elif defects_analysis:
+            thresh_value2, thresh_sa = cv2.threshold(masked_clean_image, threshold_sa, 255, cv2.THRESH_BINARY_INV)
+        else:
+            pass
+        percentile_threshold_sa = np.sum(masked_clean_image<=thresh_value2) / masked_clean_image.size * 100
+        print(f"2nd threshold value: {thresh_value2}, Percentile: {percentile_threshold_sa:.2f}%")
+        thresh_sa = self.apply_morphological_operations2(thresh_sa, opening2, closing2, dilation2, erosion2, gradient2, boundary2, kernel)
+
+
+        # # Finding clusters and single atoms
+        retrieval_mode = self.contour_retrieval_modes[contour_retrieval_modes]
+        approx_method = self.contour_approximation_methods[contour_approximation_methods]
+
+        contours_sa, _ = cv2.findContours(thresh_sa, retrieval_mode, approx_method)
+
+        # Convert to integer coordinates
+        contours_sa = [c.astype(np.int32) for c in contours_sa]
+
+        # Calculate isolation status for all original SA contours
+        if self.min_isolation_checkbox.value:
+            isolation_mask = self.calculate_isolation(contours_sa, nm_per_pixel, isolation_distance)
+        else:
+            isolation_mask = np.ones(len(contours_sa), dtype=bool)
+
+        # Independent condition checks
+        valid_contours_sa = []
+        centroids = []
+        for idx, cnt in enumerate(contours_sa):
+            area = cv2.contourArea(cnt)
+            perimeter = cv2.arcLength(cnt, True)
+            
+            # Independent area check
+            area_nm2 = area * nm2_per_pixel2
+            area_ok = (min_cluster_area <= area_nm2 < max_cluster_area)
+            
+            # Independent circularity check
+            circularity = (4 * np.pi * area) / (perimeter ** 2) if perimeter > 0 else 0
+            circ_ok = circularity >= min_circularity
+            
+            # Independent isolation check
+            isol_ok = isolation_mask[idx]
+            
+            # Combine independent conditions
+            if area_ok and circ_ok and isol_ok:
+                valid_contours_sa.append(cnt)
+                M = cv2.moments(cnt)
+                if M["m00"] != 0:
+                    cx = int(M["m10"] / M["m00"])
+                    cy = int(M["m01"] / M["m00"])
+                    centroids.append([cx, cy])
+
+        circularity, roundness, feret_diameter, aspect_ratio = self.compute_all_shape_metrics(valid_contours_sa, nm_per_pixel)
+        # Prepare data for histograms
+        clean_areas = self.compute_all_areas(valid_contours, nm2_per_pixel2)
+        cluster_areas = self.compute_all_areas(valid_contours_sa, nm2_per_pixel2)
+
+
+       #Results calculation
+        if clean_graphene_analysis:
+            total_clean_area_nm2 = sum(cv2.contourArea(cnt) * nm2_per_pixel2 for cnt in valid_contours)
+            clusters_in_clean_graphene = [cv2.contourArea(cnt) * nm2_per_pixel2 for cnt in valid_contours_sa]
+            single_atoms = [element for element in clusters_in_clean_graphene if element < sa_cluster_definer]
+            clusters = [element for element in clusters_in_clean_graphene if element >= sa_cluster_definer]
+            number_of_atoms = len(single_atoms)
+            number_of_clusters = len(clusters)
+            total_sa_cluster_area_nm2 = sum(clusters_in_clean_graphene)
+            total_atoms_area = sum(single_atoms)
+            total_clusters_area = sum(clusters)
+            density_atoms_in_clean_graphene = number_of_atoms / total_clean_area_nm2 if total_clean_area_nm2 > 0 else float('nan')
+            density_clusters_in_clean_graphene = number_of_clusters / total_clean_area_nm2 if total_clean_area_nm2 > 0 else float('nan')
+
+        elif contamination_analysis:
+            total_contamination_area_nm2 = sum(cv2.contourArea(cnt) * nm2_per_pixel2 for cnt in valid_contours)  
+            clusters_in_contamination = [cv2.contourArea(cnt) * nm2_per_pixel2 for cnt in valid_contours_sa] 
+            single_atoms = [element for element in clusters_in_contamination if element <= sa_cluster_definer]
+            clusters = [element for element in clusters_in_contamination if element > sa_cluster_definer]
+            number_of_atoms = len(single_atoms)
+            number_of_clusters = len(clusters)
+            total_sa_cluster_area_nm2 = sum(clusters_in_contamination)
+            total_atoms_area = sum(single_atoms)
+            total_clusters_area = sum(clusters)
+            density_atoms_in_contamination = number_of_atoms / total_contamination_area_nm2 if total_contamination_area_nm2 > 0 else float('nan')
+            density_clusters_in_contamination = number_of_clusters / total_contamination_area_nm2   if total_contamination_area_nm2 > 0 else float('nan')
+
+        results = {
+                        'clean_graphene': {},
+                        'contamination': {},
+                        'clusters_and_single_atoms': {}
+                    }
+
+        if clean_graphene_analysis:
+            results['clean_graphene'].update({'number_of_clusters': number_of_clusters,                
+                'total_area_nm2': total_clean_area_nm2,
+                'total_cluster_area_nm2': total_clusters_area,
+                'clusters_density_in_graphene_nm2': density_clusters_in_clean_graphene,
+                'clusters': clusters,
+                'number_of_atoms': number_of_atoms,
+                'total_atoms_area_nm2': total_atoms_area,
+                'atoms_density_nm2': density_atoms_in_clean_graphene,
+                'atoms': single_atoms,
+                'shape_metrics': {
+                    'circularity': circularity,
+                    'roundness': roundness,
+                    'feret_diameter': feret_diameter,
+                    'aspect_ratio': aspect_ratio
+                }}
+            )
+            results['clusters_and_single_atoms']['total_cluster_area_nm2'] = total_sa_cluster_area_nm2
+
+        elif contamination_analysis:
+            results['contamination'].update({
+                'total_area_nm2': total_contamination_area_nm2,
+                'Clusters_analysis': {
+                    'number_of_clusters': number_of_clusters,
+                    'total_area_nm2': total_clusters_area,
+                    'clusters_density_in_contamination_nm2': density_clusters_in_contamination,
+                    'clusters': clusters
+                },
+                'Atoms_analysis': {
+                    'number_of_atoms': number_of_atoms,
+                    'total_atoms_area_nm2': total_atoms_area,
+                    'atoms_density_in_contamination_nm2': density_atoms_in_contamination,
+                    'atoms': single_atoms
+                },
+                'shape_metrics': {
+                    'circularity': circularity,
+                    'roundness': roundness,
+                    'feret_diameter': feret_diameter,
+                    'aspect_ratio': aspect_ratio
+                }
+            })
+            results['clusters_and_single_atoms']['total_cluster_area_nm2'] = total_sa_cluster_area_nm2
+
+            results['clusters_and_single_atoms'].update({
+                'detected_clusters_count': len(valid_contours_sa),
+                'calibration_nm_per_pixel': nm_per_pixel,
+                'contour_data': {
+                    'clean_areas_nm2': clean_areas if 'clean_areas' in locals() else [],
+                    'cluster_areas_nm2': cluster_areas if 'cluster_areas' in locals() else []
+                }
+            })
+        if clean_graphene_analysis or contamination_analysis:
+            results_key = 'clean_graphene' if clean_graphene_analysis else 'contamination'
+            results[results_key]['shape_metrics'] = {
+                'circularity': circularity,
+                'roundness': roundness,
+                'feret_diameter': feret_diameter,
+                'aspect_ratio': aspect_ratio
+            }
+
+        # print(  results['clean_graphene'].get('total_area_nm2', float('nan')),
+        #         # results['clean_graphene'].get('number_of_clusters', float('nan')),
+        #         # results['clean_graphene'].get('total_cluster_area_nm2', float('nan')),
+        #         # results['clean_graphene'].get('clusters_density_in_graphene_nm2', float('nan')),
+        #         # results['clean_graphene'].get('clusters', float('nan')),
+        #         results['clean_graphene'].get('number_of_atoms', np.nan),
+        #         results['clean_graphene'].get('total_atoms_area_nm2', np.nan),
+        #         results['clean_graphene'].get('atoms_density_nm2', np.nan),
+        #         results['clean_graphene'].get('atoms', np.nan))
+
+
+        print(  'Total area nm2: ' + f"{results['contamination'].get('total_area_nm2', float('nan'))}" + '\n',
+                # results['contamination'].get('Clusters_analysis', {}).get('count', float('nan')),
+                # results['contamination'].get('Clusters_analysis', {}).get('total_area_nm2', float('nan')),
+                # results['contamination'].get('Clusters_analysis', {}).get('clusters_density_in_contamination_nm2', float('nan')),
+                # results['contamination'].get('Clusters_analysis', {}).get('clusters', float('nan')),
+                'Number of atoms: '+ f"{results['contamination'].get('Atoms_analysis', {}).get('number_of_atoms', np.nan)}" + '\n',
+                # results['contamination'].get('Atoms_analysis', {}).get('total_atoms_area_nm2', np.nan),
+                'Atom density: '+ f"{results['contamination'].get('Atoms_analysis', {}).get('atoms_density_in_contamination_nm2', np.nan)}" + '\n',
+                results['contamination'].get('Atoms_analysis', {}).get('atoms', np.nan))
+        # Display images if requested 
+        area_of_interest_label = "Clean graphene area" if clean_graphene_analysis else "Contamination area"
+        area_of_interest = total_clean_area_nm2 if clean_graphene_analysis else total_contamination_area_nm2
+
+
+        # Visualization
+
+        # Replace small contours with circles of the same area (This is for plotting purposes, it doesn't affect the analysis)
+        if self.make_circular_thresh_checkbox.value:
+            small_area_threshold_nm2 = make_circular  # Example: 0.5 nm²
+
+            modified_contours = []
+            modified_centroids = []  # To store centroids of modified contours
+            for cnt in valid_contours_sa:
+                area_px = cv2.contourArea(cnt)
+                area_nm2 = area_px * nm2_per_pixel2
+                
+                if area_nm2 < small_area_threshold_nm2:
+                    # Compute centroid of the original contour
+                    M = cv2.moments(cnt)
+                    if M["m00"] != 0:
+                        cx = int(M["m10"] / M["m00"])
+                        cy = int(M["m01"] / M["m00"])
+                    else:
+                        cx, cy = 0, 0
+                    
+                    # Generate a circle with the same area as the original contour
+                    radius = np.sqrt(area_px / np.pi)
+                    circle_contour = np.array([
+                        [   [int(round(cx + radius * np.cos(theta))),
+                            int(round(cy + radius * np.sin(theta)))]
+                            for theta in np.linspace(0, 2*np.pi, 36) ]], dtype=np.int32)
+                    modified_contours.append(circle_contour)
+                    modified_centroids.append([cx, cy])  # Centroid remains the same
+                else:
+                    modified_contours.append(cnt)
+                    # Recompute centroid for consistency (optional)
+                    M = cv2.moments(cnt)
+                    if M["m00"] != 0:
+                        cx = int(M["m10"] / M["m00"])
+                        cy = int(M["m01"] / M["m00"])
+                        modified_centroids.append([cx, cy])
+                    else:
+                        modified_centroids.append([0, 0])
+        else:
+            modified_contours = valid_contours_sa  # to avoid errors if no contours are modified
+
+
+        masked_image = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+        masked_image[contour_mask == 0] = self.mask_color(masked_color)
+        cv2.drawContours(masked_image, valid_contours_sa, -1, (0, 255, 0), 1)
+
+
+        if display_images:
+            histogram, bins = np.histogram(img, bins=256, range=(0, 255))
+            aoi_histogram, aoi_bins = np.histogram(masked_clean_image, bins=256, range=(0, 255))
+            valid_contour_sa_mask = np.zeros_like(img)
+            cv2.drawContours(valid_contour_sa_mask, modified_contours, -1, 255, thickness=cv2.FILLED)
+
+            # Create or reuse figure
+            if not hasattr(self, 'fig') or not plt.fignum_exists(self.fig.number):
+                self.fig, self.axs = plt.subplots(2, 4, figsize=(16, 8))
+                self.fig.show()
+            else:
+                # Clear previous content
+                for ax in self.axs.flatten():
+                    ax.cla()
+
+            # Update plots with new data
+            self.axs[0,0].imshow(image, cmap=colormap)
+            self.axs[0,0].set_title('Filtered Image')
+
+            
+            self.axs[0,1].imshow(thresh, cmap='gray')
+            self.axs[0,1].set_title('Thresholding of original image')
+
+            self.axs[0,2].imshow(contour_mask, cmap=colormap)
+            self.axs[0,2].set_title('Filtered thresholded image')
+
+            self.axs[0,3].plot(np.log1p(histogram), color='blue')
+            self.axs[0,3].set_xlabel('Clean Area (nm²)')
+            self.axs[0,3].set_ylabel('Count')
+            self.axs[0,3].set_title('Clean Area Distribution')
+            self.axs[0,3].grid(True)
+            self.axs[0,3].set_xlim(0, 25)  
+            self.axs[0,3].set_ylim(0, 40)  
+            self.axs[0,3].axvline(x=thresh_value, color='red', linestyle='--', label=f'Percentile: {thresh_value:.2f}%')
+            self.axs[0,3].axis('on')
+            info_text = (
+                f"Number of {area_of_interest_label} found:   {len(clean_areas)}\n"
+                f"Total {area_of_interest_label}: {area_of_interest:.2f} nm²\n")
+
+            anchored_text = AnchoredText(info_text, loc='upper left', prop=dict(size=10),
+                                        frameon=True, pad=0.5, borderpad=0.5)
+            anchored_text.patch.set_boxstyle("round,pad=0.3")
+            anchored_text.patch.set_facecolor("white")
+            anchored_text.patch.set_alpha(0.9)
+            self.axs[0,3].add_artist(anchored_text)
+            
+            self.axs[1,0].imshow(masked_image, cmap='gray')
+            self.axs[1,0].set_title('Contamination Mask keeping only clean graphene')
+
+            self.axs[1,1].imshow(thresh_sa, cmap=colormap)
+            self.axs[1,1].set_title('Threholding of the clean graphene area')
+            
+            self.axs[1,2].imshow(valid_contour_sa_mask, cmap='gray')
+            self.axs[1,2].set_title('Filtered clusters and single atoms')
+
+            self.axs[1,3].plot(np.log1p(aoi_histogram), color='green')
+            self.axs[1,3].set_title('Cluster Size Distribution')
+            self.axs[1,3].set_xlabel('Cluster Area (nm²)')
+            self.axs[1,3].set_ylabel('Count')
+            self.axs[1,3].grid(True)
+            self.axs[1,3].set_xlim(0, 40)  
+            self.axs[1,3].set_ylim(0, 30)  
+            self.axs[1,3].axvline(x=thresh_value2, color='red', linestyle='--', label=f'Percentile: {thresh_value2:.2f}%')
+            self.axs[1,3].axis('on')
+            info_text = (
+                f"Number of clusters found:  {len(cluster_areas)}\n")
+                # f"Total cluster area in {area_of_interest_label}: {total_sa_cluster_area_nm2:.2f} nm²\n")
+            anchored_text = AnchoredText(info_text, loc='upper left', prop=dict(size=10),
+                                        frameon=True, pad=0.5, borderpad=0.5)
+            anchored_text.patch.set_boxstyle("round,pad=0.3")
+            anchored_text.patch.set_facecolor("white")
+            anchored_text.patch.set_alpha(0.9)
+            self.axs[1,3].add_artist(anchored_text)
+            # # Redraw only the changed elements
+            for ax in self.axs.flatten():
+                if ax == self.axs[0,3] or ax == self.axs[1,3]:  # Only redraw the first image
+                    ax.axis('on')
+                else:
+                    ax.axis('off')
+
+            self.fig.tight_layout()
+            self.fig.canvas.draw()
+            fig_name = f"{self.image_name.value}.svg"
+
+            def save_fig():
+                self.fig.savefig(fig_name, format='svg', bbox_inches='tight', pad_inches=0)
+                return
+        self.save_for_figure_button.on_click(lambda b: save_fig())
+
+        print("Final results:", results)
+        self.results = pd.DataFrame(results)
+        return results
+
+
+
+    def save_new_data_to_existing_df(self, _):
+        """Saves/updates ONLY Calibrated_FOV and Entire_Area_nm2 in CSV
+        I needed to create this function to save new statistics that I didn't collect yet and 
+         I need to add them without overwriting the whole CSV file. This is based on the slice number
+         of the image so it will create the new columns and save the new data in the same row as the image slice number."""
+        filename = self.filename_input.value
+        slice_number = self.slice_slider.value
+        
+        try:
+            # 1. Get calibration data for current slice
+            image = self.stack.raw_data[slice_number]
+            nm_per_pixel, _ = self.fft_calibration.get_calibrated_image(image, slice_number)
+            calibrated_fov = image.shape[0] * nm_per_pixel
+            entire_area = calibrated_fov ** 2
+            
+            # 2. Prepare minimal data
+            new_data = {
+                'Slice': slice_number,
+                'Calibrated_FOV': calibrated_fov,
+                'Entire_Area_nm2': entire_area
+            }
+            
+            # 3. Read existing CSV or create empty DataFrame
+            if os.path.exists(filename):
+                df = pd.read_csv(filename)
+                # Preserve existing columns
+                if 'Calibrated_FOV' not in df.columns:
+                    df['Calibrated_FOV'] = np.nan
+                if 'Entire_Area_nm2' not in df.columns:
+                    df['Entire_Area_nm2'] = np.nan
+            else:
+                df = pd.DataFrame(columns=['Slice', 'Calibrated_FOV', 'Entire_Area_nm2'])
+            
+            # 4. Update existing row or append new
+            mask = df['Slice'] == slice_number
+            if mask.any():
+                for col in new_data.keys():
+                    if col in df.columns:
+                        df.loc[mask, col] = new_data[col]
+            else:
+                df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
+            
+            # 5. Save back
+            df.to_csv(filename, index=False)
+            print(f"Updated slice {slice_number}: FOV={calibrated_fov:.2f} nm")
+            
+        except Exception as e:
+            print(f"Save failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+
+
+    def save_data(self, _):
+        import json
+        import os
+        import pandas as pd
+        import numpy as np
+        
+        # 1. Get filename and ensure directory exists
+        base_name = self.filename_input.value
+        if not base_name:
+            print("Error: Filename is empty")
+            return
+        
+        filename = f"{base_name}.csv" if not base_name.endswith('.csv') else base_name
+        dir_path = os.path.dirname(filename)
+        if dir_path and not os.path.exists(dir_path):
+            os.makedirs(dir_path, exist_ok=True)
+        
+        slice_number = self.slice_slider.value
+        
+        # 2. Prepare data storage with default values
+        new_data = {
+            "Slice": slice_number,
+            "Clean_Area_nm2": np.nan,
+            "Contamination_Area_nm2": np.nan,
+            "Number_of_Clusters": np.nan,
+            "Total_Cluster_Area_nm2": np.nan,
+            "Clusters_Density": np.nan,
+            "Clusters": "[]",
+            "Num_Atoms": np.nan,
+            "Atoms_Area": np.nan,
+            "Atoms_Density": np.nan,
+            "Atoms": "[]",
+            "Calibrated_FOV": np.nan,
+            "Entire_Area_nm2": np.nan,
+            "Circularities": "[]",
+            "Roundness": "[]",
+            "Feret_Diameter": "[]",
+            "Aspect_Ratio": "[]"
+        }
+
+        try:
+            # Collect parameters for analysis
+            params = {
+                "threshold": self.threshold_slider.value,
+                "threshold_sa": self.threshold_sa_slider.value,
+                "gamma": self.gamma_slider.value,
+                "clahe_clip": self.clahe_clip_slider.value,
+                "clahe_tile": self.clahe_tile_slider.value,
+                "gaussian_sigma": self.gaussian_sigma_slider.value,
+                "contrast": self.contrast_slider.value,
+                "min_clean_cont_area": self.min_clean_cont_area_slider.value,
+                "max_clean_cont_area": self.max_clean_cont_area_slider.value,
+                "min_cluster_area": self.min_cluster_area_slider.value,
+                "max_cluster_area": self.max_cluster_area_slider.value,
+                "make_circular": self.make_circular_thresh_slider.value,
+                "double_gaussian_sigma1": self.double_gaussian_slider1.value,
+                "double_gaussian_sigma2": self.double_gaussian_slider2.value,
+                "double_gaussian_weight": self.double_gaussian_weight_slider.value,
+                "iteration_opening": self.opening_slider.value,
+                "iteration_closing": self.closing_slider.value,
+                "iteration_dilation": self.dilation_slider.value,
+                "iteration_erosion": self.erosion_slider.value,
+                "iteration_gradient": self.gradient_slider.value,
+                "iteration_boundary": self.boundary_slider.value,
+                "min_circularity": self.min_circularity_slider.value,
+                "isolation_distance": self.min_isolation_slider.value,
+                "opening2": self.opening2_slider.value,
+                "closing2": self.closing2_slider.value,
+                "dilation2": self.dilation2_slider.value,
+                "erosion2": self.erosion2_slider.value,
+                "gradient2": self.gradient2_slider.value,
+                "boundary2": self.boundary2_slider.value,
+                "sa_cluster_definer": self.single_atom_clusters_definer_slider.value,
+                "slice_number": slice_number,
+                "kernel": self.kernel_size_slider.value,
+                "brightness": self.brightness_slider.value,
+                "sigmoid_alpha": self.sigmoid_alpha_slider.value,
+                "sigmoid_beta": self.sigmoid_beta_slider.value,
+                "exp_transform": self.exp_transform_checkbox.value,
+                "log_transform": self.log_transform_checkbox.value,
+                'contour_retrieval_modes': self.contour_retrieval_dropdown.value,
+                'contour_approximation_methods': self.contour_approximation_dropdown.value,
+                "resize_factor": self.resize_factor_slider.value,
+                "resize_method": self.resize_method_dropdown.value,
+                "display_images": False
+            }
+            
+            # Run analysis
+            results = self.analyse_features(**params)
+            
+            # Determine analysis type
+            analysis_type = self.analysis_type_dropdown.value
+            clean_graphene_analysis = (analysis_type == 'Clean_area_analysis')
+            contamination_analysis = (analysis_type == 'Contaminated_area_analysis')
+            
+            # Determine feature analysis type
+            feature_analysis_type = self.feature_analysis_type_dropdown.value
+            clusters_sa_analysis = (feature_analysis_type == 'Single_atom_clusters_analysis')
+            defects_analysis = (feature_analysis_type == 'Defects_analysis')
+
+            # Get calibration data
+            image = self.stack.raw_data[slice_number]
+            nm_per_pixel, nm2_per_pixel2 = self.fft_calibration.get_calibrated_image(image, slice_number)
+            current_fov = image.shape[0] * nm_per_pixel  
+            entire_area_nm2 = current_fov ** 2
+            
+            # Update new_data with calibration
+            new_data.update({
+                "Calibrated_FOV": current_fov,
+                "Entire_Area_nm2": entire_area_nm2
+            })
+            
+            # Handle results based on analysis type
+            if clean_graphene_analysis:
+                graphene = results.get('clean_graphene', {})
+                new_data.update({
+                    "Clean_Area_nm2": graphene.get('total_area_nm2', np.nan),
+                    "Number_of_Clusters": graphene.get('number_of_clusters', np.nan),
+                    "Total_Cluster_Area_nm2": graphene.get('total_cluster_area_nm2', np.nan),
+                    "Clusters_Density": graphene.get('clusters_density_in_graphene_nm2', np.nan),
+                    "Clusters": json.dumps(graphene.get('clusters', [])),
+                    "Num_Atoms": graphene.get('number_of_atoms', np.nan),
+                    "Atoms_Area": graphene.get('total_atoms_area_nm2', np.nan),
+                    "Atoms_Density": graphene.get('atoms_density_nm2', np.nan),
+                    "Atoms": json.dumps(graphene.get('atoms', [])),
+                    "Circularities": json.dumps(graphene.get('shape_metrics', {}).get('circularity', [])),
+                    "Roundness": json.dumps(graphene.get('shape_metrics', {}).get('roundness', [])),
+                    "Feret_Diameter": json.dumps(graphene.get('shape_metrics', {}).get('feret_diameter', [])),
+                    "Aspect_Ratio": json.dumps(graphene.get('shape_metrics', {}).get('aspect_ratio', []))
+                })
+            elif contamination_analysis:
+                contamination = results.get('contamination', {})
+                clusters_analysis = contamination.get('Clusters_analysis', {})
+                atoms_analysis = contamination.get('Atoms_analysis', {})
+                
+                new_data.update({
+                    "Contamination_Area_nm2": contamination.get('total_area_nm2', np.nan),
+                    "Number_of_Clusters": clusters_analysis.get('number_of_clusters', np.nan),
+                    "Total_Cluster_Area_nm2": clusters_analysis.get('total_area_nm2', np.nan),
+                    "Clusters_Density": clusters_analysis.get('clusters_density_in_contamination_nm2', np.nan),
+                    "Clusters": json.dumps(clusters_analysis.get('clusters', [])),
+                    "Num_Atoms": atoms_analysis.get('number_of_atoms', np.nan),
+                    "Atoms_Area": atoms_analysis.get('total_atoms_area_nm2', np.nan),
+                    "Atoms_Density": atoms_analysis.get('atoms_density_in_contamination_nm2', np.nan),
+                    "Atoms": json.dumps(atoms_analysis.get('atoms', [])),
+                    "Circularities": json.dumps(contamination.get('shape_metrics', {}).get('circularity', [])),
+                    "Roundness": json.dumps(contamination.get('shape_metrics', {}).get('roundness', [])),
+                    "Feret_Diameter": json.dumps(contamination.get('shape_metrics', {}).get('feret_diameter', [])),
+                    "Aspect_Ratio": json.dumps(contamination.get('shape_metrics', {}).get('aspect_ratio', []))
+                })
+                
+        except Exception as e:
+            print(f"Analysis failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+        # 4. Add filter parameters to CSV data
+        try:
+            filter_params = {}
+            for param, widget in [
+                ("Analysis_Type", self.analysis_type_dropdown),
+                ("Feature_Analysis_Type", self.feature_analysis_type_dropdown),
+                ("Resize_Factor", self.resize_factor_slider),
+                ("Resize_Method", self.resize_method_dropdown),
+                ("Kernel_Size", self.kernel_size_slider),
+                ("Threshold", self.threshold_slider),
+                ("Threshold_SA", self.threshold_sa_slider),
+                ("Gamma", self.gamma_slider),
+                ("CLAHE_Clip", self.clahe_clip_slider),
+                ("CLAHE_Tile", self.clahe_tile_slider),
+                ("Gaussian_Sigma", self.gaussian_sigma_slider),
+                ("Percentile Contrast", self.contrast_slider),
+                ("Double_Gaussian_Sigma1", self.double_gaussian_slider1),
+                ("Double_Gaussian_Sigma2", self.double_gaussian_slider2),
+                ("Double_Gaussian_Weight", self.double_gaussian_weight_slider),
+                ("Dilation", self.dilation_slider),
+                ("Erosion", self.erosion_slider),
+                ("Opening", self.opening_slider),
+                ("Closing", self.closing_slider),
+                ("Gradient", self.gradient_slider),
+                ("Boundary", self.boundary_slider),
+                ("Opening2", self.opening2_slider),
+                ("Closing2", self.closing2_slider),
+                ("Dilation2", self.dilation2_slider),
+                ("Erosion2", self.erosion2_slider),
+                ("Gradient2", self.gradient2_slider),
+                ("Boundary2", self.boundary2_slider),
+                ("Circularity", self.min_circularity_slider),
+                ("Isolation Distance", self.min_isolation_slider),
+                ("Make Circular threshold", self.make_circular_thresh_slider),
+                ("SA_Cluster_Definer", self.single_atom_clusters_definer_slider),
+                ("Brightness", self.brightness_slider),
+                ("Sigmoid Alpha", self.sigmoid_alpha_slider),
+                ("Sigmoid Beta", self.sigmoid_beta_slider),
+                ("Exp Transform", self.exp_transform_checkbox),
+                ("Log Transform", self.log_transform_checkbox),
+                ("Min_Clean_Cont_Area_nm2", self.min_clean_cont_area_slider),
+                ("Max_Clean_Cont_Area_nm2", self.max_clean_cont_area_slider),
+                ("Min_Cluster_Area_nm2", self.min_cluster_area_slider),
+                ("Max_Cluster_Area_nm2", self.max_cluster_area_slider),
+                ("Contour_retrieval_modes", self.contour_retrieval_dropdown),
+                ("Contour_approximation_methods", self.contour_approximation_dropdown)
+            ]:
+                try:
+                    value = widget.value
+                    default = DEFAULTS.get(param)
+                    if default is not None:
+                        if isinstance(default, float):
+                            if np.isclose(value, default, rtol=1e-2):
+                                value = np.nan
+                        elif isinstance(default, str):
+                            if value == default:
+                                value = value
+                        else:
+                            if value == default:
+                                value = np.nan
+                    filter_params[param] = value
+                except AttributeError:
+                    print(f"Warning: Widget for {param} not found")
+                    filter_params[param] = np.nan
+
+            new_data.update(filter_params)
+            print("Filter parameters collected")
+            
+        except Exception as e:
+            print(f"Parameter collection failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+        # 5. Save to CSV
+        try:
+            print(f"Saving to: {os.path.abspath(filename)}")
+            
+            # Create new DataFrame row with enforced column order
+            new_row = pd.DataFrame([new_data])
+            
+            # Reorder columns to match desired order
+            new_row = new_row.reindex(columns=COLUMNS_ORDER + 
+                                    [col for col in new_row.columns if col not in COLUMNS_ORDER])
+            
+            if os.path.isfile(filename):
+                # Read existing data
+                existing = pd.read_csv(filename)
+                
+                # Create complete column list (desired order + any extra columns)
+                complete_columns = COLUMNS_ORDER + [col for col in existing.columns if col not in COLUMNS_ORDER]
+                
+                # Reorder existing columns
+                existing = existing.reindex(columns=complete_columns)
+                
+                # Add any missing columns from new_data
+                for col in new_data.keys():
+                    if col not in existing.columns:
+                        existing[col] = np.nan
+                        
+                # Reorder again after adding new columns
+                existing = existing.reindex(columns=complete_columns + 
+                                        [col for col in new_data.keys() if col not in complete_columns])
+                
+                # Find existing row for this slice
+                mask = existing['Slice'] == slice_number
+                if mask.any():
+                    # Update existing row
+                    idx = mask.idxmax()
+                    for col in new_data:
+                        if col in existing.columns:
+                            existing.loc[idx, col] = new_row[col].values[0]
+                    existing.to_csv(filename, index=False)
+                    print(f"Updated existing row for slice {slice_number}")
+                else:
+                    # Append new row
+                    updated = pd.concat([existing, new_row], ignore_index=True)
+                    updated.to_csv(filename, index=False)
+                    print(f"Appended new row for slice {slice_number}")
+            else:
+                # Create new file with enforced column order
+                new_row.to_csv(filename, index=False)
+                print(f"Created new file: {filename}")
+                
+            print(f"Successfully saved data to {filename}")
+                
+        except Exception as e:
+            print(f"CSV save failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+
+    
+    def _interactive_image_analysis(self):
+        return  interactive_output(self.analyse_features, {'slice_number': self.slice_slider, 'kernel': self.kernel_size_slider,
+                                                            'threshold': self.threshold_slider, 'threshold_sa': self.threshold_sa_slider,
+                                                            'gamma': self.gamma_slider, 'clahe_clip': self.clahe_clip_slider, 'clahe_tile': self.clahe_tile_slider,
+                                                            'gaussian_sigma': self.gaussian_sigma_slider, 'contrast': self.contrast_slider,
+                                                            'min_clean_cont_area': self.min_clean_cont_area_slider, 'max_clean_cont_area': self.max_clean_cont_area_slider, 
+                                                            'min_cluster_area': self.min_cluster_area_slider, 'max_cluster_area': self.max_cluster_area_slider,
+                                                            'double_gaussian_sigma1': self.double_gaussian_slider1, 'double_gaussian_sigma2': self.double_gaussian_slider2,
+                                                            'double_gaussian_weight': self.double_gaussian_weight_slider, 
+                                                            'iteration_opening': self.opening_slider, 
+                                                            'iteration_erosion': self.erosion_slider,
+                                                            'iteration_dilation': self.dilation_slider,
+                                                            'iteration_closing': self.closing_slider,
+                                                            'iteration_gradient': self.gradient_slider,
+                                                            'iteration_boundary': self.boundary_slider,
+                                                            'min_circularity': self.min_circularity_slider,
+                                                            'isolation_distance': self.min_isolation_slider,
+                                                            'opening2': self.opening2_slider, 
+                                                            'closing2': self.closing2_slider,
+                                                            'dilation2': self.dilation2_slider,
+                                                            'erosion2': self.erosion2_slider,
+                                                            'gradient2': self.gradient2_slider,
+                                                            'boundary2': self.boundary2_slider,
+                                                            'sa_cluster_definer': self.single_atom_clusters_definer_slider,
+                                                            'make_circular': self.make_circular_thresh_slider,
+                                                            'brightness': self.brightness_slider,
+                                                            'sigmoid_alpha': self.sigmoid_alpha_slider,
+                                                            'sigmoid_beta': self.sigmoid_beta_slider,
+                                                            'exp_transform': self.exp_transform_checkbox,
+                                                            'log_transform': self.log_transform_checkbox,
+                                                            'contour_retrieval_modes': self.contour_retrieval_dropdown,
+                                                            'contour_approximation_methods':self.contour_approximation_dropdown,
+                                                            'resize_factor': self.resize_factor_slider,
+                                                            'resize_method': self.resize_method_dropdown,
+                                                            'colormap': self.colormap_dropdown, 'masked_color': self.mask_color_dropdown})
+
+
+
+
+if __name__ == "__main__":
+
+    font_path = "/home/somar/.fonts/SourceSansPro-Semibold.otf" 
+
+    stacks = ['/home/somar/Desktop/2025/Data for publication/Multilayer graphene/Sample 2476/stacktest1.h5']
+    stacks_ssb = ['/home/somar/Desktop/2025/Data for publication/Sample 2525/SSB reconstruction of 4d STEM data/stack_ssbs.h5']
+    stacks_ssb1 = ['/home/somar/Desktop/2025/Data for publication/Sample 2525/SSB reconstruction of 4d STEM data/stack.h5']
+
+    stacks_adf = ['/home/somar/Desktop/2025/Data for publication/Sample 2525/ADF images/stack.h5']
+    calibrated_images = FeaturesAnalysis(stacks_ssb1[0], font_path=font_path)

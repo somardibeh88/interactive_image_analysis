@@ -1,8 +1,13 @@
+""""""""""""""""""""""'""""""
+Joint widgets for interactive image analysis.
+
+Author: Somar Dibeh
+"""""""""""""""""""""""""""""
 import cv2
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QApplication
 from ipywidgets import (interactive_output, HBox, VBox, FloatSlider, IntSlider, 
                         Checkbox, Button, Output, Dropdown, IntText, FloatText, 
-                        Text, HTML, Tab, Accordion, Layout, GridBox)
+                        Text, HTML, Tab, Accordion, Layout, GridBox, ToggleButton)
 
 
 
@@ -23,6 +28,8 @@ contour_approximation_methods = { 'CHAIN_APPROX_NONE': cv2.CHAIN_APPROX_NONE,
 
 fft_orders = ['1st-order', '2nd-order']
 
+analysis_type = ['Clean_area_analysis', 'Contaminated_area_analysis']
+feature_analysis_type = ['Single_atom_clusters_analysis', 'Defects_analysis'] 
 
 
 def create_widgets():    
@@ -30,8 +37,14 @@ def create_widgets():
     Create and return a dictionary of widgets used in the image analysis application.
     This function initializes various widgets such as sliders, dropdowns, checkboxes, etc.
     for user interaction in the image analysis process.
-    """
+        """
+    contour_retrieval_modes = { 'RETR_EXTERNAL': cv2.RETR_EXTERNAL,
+                                'RETR_CCOMP': cv2.RETR_CCOMP}
 
+    contour_approximation_methods = { 'CHAIN_APPROX_NONE': cv2.CHAIN_APPROX_NONE,
+                                        'CHAIN_APPROX_SIMPLE': cv2.CHAIN_APPROX_SIMPLE,
+                                        'CHAIN_APPROX_TC89_L1': cv2.CHAIN_APPROX_TC89_L1,
+                                        'CHAIN_APPROX_TC89_KCOS': cv2.CHAIN_APPROX_TC89_KCOS}
     ###################### Dropdowns ######################
     colormap_dropdown = Dropdown(
         options=[ 'gray', 'viridis', 'plasma', 'inferno', 'magma', 'cividis',
@@ -66,6 +79,20 @@ def create_widgets():
 
     resize_method_dropdown = Dropdown(options=['Bilinear', 'Bicubic', 'Lanczos', 'Nearest', 'Area'], value='Bicubic', description='Method:', style={'description_width': '80px'}, layout={'width': '95%'})
 
+    analysis_type_dropdown = Dropdown(options=analysis_type, value='Clean_area_analysis', description='Analysis Type:', style={'description_width': '160px'}, layout={'width': '300px'})
+    feature_analysis_type_dropdown = Dropdown(options=feature_analysis_type, value='Single_atom_clusters_analysis', description='Feature Analysis Type:', style={'description_width': '260px'}, layout={'width': '500px'})
+
+
+    image_name = Text(value='image', description='Name:')
+    save_image_button = Button(description="Save Image", tooltip="Save image with scalebar", layout={'width': '160px'})
+    save_for_figure_button = Button(description="Save Figure", tooltip="Save image with scalebar", layout={'width': '160px'})
+    save_button = Button(description="Save", tooltip="Save the data point to a CSV file. A new file will be created if one does not exist", layout={'width': '160px'})
+    filename_input = Text(value='analysis_results', description='Filename:', style={'description_width': '100px'}, layout={'width': '400px'})
+
+    ###################### VCR widget ######################
+    display_vcr_checkbox = Checkbox(value=False, description='Display VCR stack', layout={'width': '95%'})
+    play_pause_btn = ToggleButton(value=False, icon='play', tooltip='Play/Pause')
+
 
     ##################### Filters widget tools #####################
     kernel_size_slider = IntSlider(min=1, max=15, value=3, step=2, description='Kernel Size', style={'description_width': '120px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
@@ -82,11 +109,11 @@ def create_widgets():
     clahe_clip_slider = FloatSlider(min=0.1, max=4.0, value=1, step=0.01, description='CLAHE Clip', layout={'display': 'none', 'width': '95%'}, continuous_update=False)
     clahe_tile_slider = IntSlider(min=1, max=42, value=t, step=1, description='CLAHE Tile', layout={'display': 'none', 'width': '95%'}, continuous_update=False)
 
-    brightness_slider = FloatSlider(min=-150, max=250, value=0, step=1, description='Brightness', layout={'display': 'none', 'width': '95%'})
-    sigmoid_alpha_slider = FloatSlider(min=0, max=20, value=10, step=0.5, description='Sigmoid Alpha', layout={'display': 'none', 'width': '95%'})
-    sigmoid_beta_slider = FloatSlider(min=0, max=1, value=0.5, step=0.01, description='Sigmoid Beta', layout={'display': 'none', 'width': '95%'})
+    brightness_slider = FloatSlider(min=-150, max=250, value=0, step=1, description='Brightness', layout={'display': 'none', 'width': '95%'}, continuous_update=False)
+    sigmoid_alpha_slider = FloatSlider(min=0, max=20, value=10, step=0.5, description='Sigmoid Alpha', layout={'display': 'none', 'width': '95%'}, continuous_update=False)
+    sigmoid_beta_slider = FloatSlider(min=0, max=1, value=0.5, step=0.01, description='Sigmoid Beta', layout={'display': 'none', 'width': '95%'}, continuous_update=False)
     ################### figures related tools #####################
-    scalebar_length_slider = IntSlider(min=1, max=400, value=10, step=1, description='Scalebar length (nm)', style={'description_width': '300px'}, layout={'display': 'none','width': '95%'})
+    scalebar_length_slider = IntSlider(min=1, max=400, value=10, step=1, description='Scalebar length (nm)', style={'description_width': '300px'}, layout={'display': 'none','width': '95%'}, continuous_update=False)
     scalebar_length_text = IntText(value=10, description='Scalebar length (nm):', style={'description_width': '300px'}, layout={'display': 'none', 'width': '95%'})
     scalebar_length_checkbox = Checkbox(value=False, description='Add specific scalebar length (nm)')
 
@@ -96,24 +123,25 @@ def create_widgets():
     region_width_text = IntText(value=100, description='Width:', layout={'display': 'none', 'width': '95%'})
     region_height_text = IntText(value=100, description='Height:', layout={'display': 'none', 'width': '95%'})
 
-    dpi_slider = IntSlider(min=100, max=1200, value=300, step=100, description='DPI', style={'description_width': '120px'}, layout={'display': 'none', 'width': '95%'})
-    resize_factor_slider = IntSlider(min=1, max=10, value=1, step=1, description='Factor:', style={'description_width': '120px'}, layout={'width': '95%'})
-    fig_x_text = IntText(value=16, description='Figure X (cm):', style={'description_width': '120px'}, layout={'display': 'none', 'width': '95%'})
-    fig_y_text = IntText(value=8, description='Figure Y (cm):', style={'description_width': '120px'}, layout={'display': 'none', 'width': '95%'})
+    dpi_slider = IntSlider(min=50, max=1400, value=100, step=25, description='DPI', style={'description_width': '120px'}, layout={'display': 'none', 'width': '95%'})
+    resize_factor_slider = FloatSlider(min=0.125, max=10, value=1, step=0.125, description='Factor:', style={'description_width': '120px'}, layout={'width': '95%'})
+    fig_x_text = FloatText(value=16.00, description='Figure X (cm):', style={'description_width': '120px'}, layout={'display': 'none', 'width': '95%'})
+    fig_y_text = FloatText(value=8.00, description='Figure Y (cm):', style={'description_width': '120px'}, layout={'display': 'none', 'width': '95%'})
     dtermine_fig_size_checkbox = Checkbox(value=False, description='Determine figure size')
 
     # Sliders for two-steps thresholding image analysis
-    threshold_slider = FloatSlider(min=0, max=255, value=100, step=0.2, description='Threshold', style={'description_width': '120px'}, layout={'display': 'none', 'width': '95%'},continuous_update=False)
-    threshold_slider_sa = FloatSlider(min=0, max=255, value=100, step=0.5, description='Threshold_sa', style={'description_width': '120px'}, layout={'width': '95%'}, continuous_update=False)
+    threshold_slider = FloatSlider(min=0, max=255, value=100, step=0.1, description='Threshold', style={'description_width': '120px'}, layout={'display': 'none', 'width': '95%'},continuous_update=False)
+    threshold_sa_slider = FloatSlider(min=0, max=255, value=100, step=0.1, description='Threshold_sa', style={'description_width': '120px'}, layout={'width': '95%'}, continuous_update=False)
 
-    min_area_slider = FloatSlider(min=0, max=100, value=50, step=0.02, description='Min Clean_Cont Area', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
-    max_area_slider = FloatSlider(min=0, max=120000, value=10000, step=5, description='Max Clean_Cont Area', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
-    min_area_sa_clusters = FloatSlider(min=0, max=200, value=0.1, step=0.001, description='Min Clust_sa Area', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, readout_format='.3f')
-    max_area_sa_clusters = FloatSlider(min=0, max=2000, value=1, step=0.005, description='Max Cluster_sa Area', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, readout_format='.3f')
-    circularity_slider = FloatSlider(min=0, max=1, value=0.5, step=0.01, description='Min Circularity', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, readout_format='.3f')
-    min_isolation_slider = FloatSlider(min=0.002, max=100, value=1, step=0.004, description='Min Isolation', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, readout_format='.3f')
-    single_atom_clusters_definer = FloatSlider(min=0, max=2, value=0.5, step=0.005, description='SA Cluster definer', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, readout_format='.3f')
-    make_circular_thresh = FloatSlider(min=0, max=2, value=0.03, step=0.005, description='Make circular thresh', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})                
+    min_clean_cont_area_slider = FloatSlider(min=0, max=100, value=50, step=0.02, description='Min Clean_Cont Area', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
+    max_clean_cont_area_slider = FloatSlider(min=0, max=120000, value=10000, step=5, description='Max Clean_Cont Area', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
+    min_cluster_area_slider = FloatSlider(min=0, max=200, value=0.1, step=0.001, description='Min Clust_sa Area', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, readout_format='.3f', continuous_update=False)
+    max_cluster_area_slider = FloatSlider(min=0, max=2000, value=1, step=0.005, description='Max Cluster_sa Area', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, readout_format='.3f', continuous_update=False)
+    min_circularity_slider = FloatSlider(min=0, max=1, value=0.05, step=0.01, description='Min Circularity', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, readout_format='.3f', continuous_update=False)
+    min_isolation_slider = FloatSlider(min=0.002, max=100, value=0.2, step=0.004, description='Min Isolation', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, readout_format='.3f', continuous_update=False)
+    single_atom_clusters_definer_slider = FloatSlider(min=0, max=2, value=0.5, step=0.005, description='SA Cluster definer', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, readout_format='.3f', continuous_update=False)
+    make_circular_thresh_slider = FloatSlider(min=0, max=2, value=0.03, step=0.005, description='Make circular thresh', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})                
+    make_circular_thresh_checkbox = Checkbox(value=False, description='Make circular thresh')
 
 
     #############################  Morphological operations widgets #######################################
@@ -125,12 +153,12 @@ def create_widgets():
     boundary_slider = IntSlider(min=0, max=10, value=0, description='Boundary Iterations', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
     black_hat_slider = IntSlider(min=0, max=10, value=0, description='Black Hat Iterations',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
     top_hat_slider = IntSlider(min=0, max=10, value=0, description='Top Hat Iterations', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
-    opening_slider2 = IntSlider(min=0, max=10, value=0, description='Opening Iterations 2',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
-    closing_slider2 = IntSlider(min=0, max=10, value=0, description='Closing Iterations 2',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
-    dilation_slider2 = IntSlider(min=0, max=10, value=0, description='Dilation Iterations 2',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
-    erosion_slider2 = IntSlider(min=0, max=10, value=0, description='Erosion Iterations 2', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
-    gradient_slider2 = IntSlider(min=0, max=10, value=0, description='Gradient Iterations 2',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
-    boundary_slider2 = IntSlider(min=0, max=10, value=0, description='Boundary Iterations 2', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
+    opening2_slider = IntSlider(min=0, max=10, value=0, description='Opening Iterations 2',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
+    closing2_slider = IntSlider(min=0, max=10, value=0, description='Closing Iterations 2',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
+    dilation2_slider = IntSlider(min=0, max=10, value=0, description='Dilation Iterations 2',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
+    erosion2_slider = IntSlider(min=0, max=10, value=0, description='Erosion Iterations 2', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
+    gradient2_slider = IntSlider(min=0, max=10, value=0, description='Gradient Iterations 2',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
+    boundary2_slider = IntSlider(min=0, max=10, value=0, description='Boundary Iterations 2', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
 
 
     ################################## FFT Calibration Sliders #########################################
@@ -153,22 +181,26 @@ def create_widgets():
     black_hat_checkbox = Checkbox(value=False, description='Apply Black Hat')
     top_hat_checkbox = Checkbox(value=False, description='Apply Top Hat')
 
-    min_area_checkbox = Checkbox(value=False, description='Min clean_cont area')
-    max_area_checkbox = Checkbox(value=False, description='Max clean_cont area')
-    min_area_checkbox_sa = Checkbox(value=False, description='Min cluster_sa area')
-    max_area_checkbox_sa = Checkbox(value=False, description='Max cluster_sa area')
-    circularity_checkbox = Checkbox(value=False, description='Min Circularity')
-    isolation_checkbox = Checkbox(value=False, description='Min Isolation')
+    clean_area_analysis_checkbox = Checkbox(value=False, description='Clean area analysis')
+    contaminated_area_analysis_checkbox = Checkbox(value=False, description='Contaminated area analysis')
 
-    opening_checkbox2 = Checkbox(value=False, description='Apply Opening2')
-    closing_checkbox2 = Checkbox(value=False, description='Apply Closing2')
-    dilation_checkbox2 = Checkbox(value=False, description='Apply Dilation2')
-    erosion_checkbox2 = Checkbox(value=False, description='Apply Erosion2')
-    gradient_checkbox2 = Checkbox(value=False, description='Apply Gradient2')
-    boundary_checkbox2 = Checkbox(value=False, description='Apply Boundary Extraction2')
+    min_clean_cont_area_checkbox = Checkbox(value=False, description='Min clean_cont area')
+    max_clean_cont_area_checkbox = Checkbox(value=False, description='Max clean_cont area')
+    min_cluster_area_checkbox = Checkbox(value=False, description='Min cluster_sa area')
+    max_cluster_area_checkbox = Checkbox(value=False, description='Max cluster_sa area')
+    min_circularity_checkbox = Checkbox(value=False, description='Min Circularity')
+    min_isolation_checkbox = Checkbox(value=False, description='Min Isolation')
+
+    opening2_checkbox = Checkbox(value=False, description='Apply Opening2')
+    closing2_checkbox = Checkbox(value=False, description='Apply Closing2')
+    dilation2_checkbox = Checkbox(value=False, description='Apply Dilation2')
+    erosion2_checkbox = Checkbox(value=False, description='Apply Erosion2')
+    gradient2_checkbox = Checkbox(value=False, description='Apply Gradient2')
+    boundary2_checkbox = Checkbox(value=False, description='Apply Boundary Extraction2')
     single_atom_clusters_definer_checkbox = Checkbox(value=False, description='Single Atom Clusters Definer')
     make_circular_thresh_checkbox = Checkbox(value=False, description='Make circular thresh')
-
+    threshold_checkbox = Checkbox(value=False, description='1st Threshold', layout={'width': '95%'})
+    threshold_sa_checkbox = Checkbox(value=False, description='2nd Threshold SA', layout={'width': '95%'})
 
     ########################### Filters Checkboxes ###################################
     contrast_checkbox = Checkbox(value=False, description='Contrast Enhancement')
@@ -202,8 +234,7 @@ def create_widgets():
 
     widgets_dict = {}
     for name, value in locals().copy().items():
-        if name.endswith(('_dropdown', '_slider', '_checkbox', '_slider1', '_slider2', '_slider_sa', 'text')):
-            widgets_dict[name] = value
+        widgets_dict[name] = value
     
     return widgets_dict
 

@@ -26,7 +26,6 @@ from .filters import *
 from .fft_calibration_class import FFTCalibration
 from .joint_widgets import create_widgets
 
-plt.rcParams.update({'font.size': 10})
 
 cv2.ocl.setUseOpenCL(False)
 
@@ -38,7 +37,7 @@ class CalibratedImages():
                          'Nearest': cv2.INTER_NEAREST,
                          'Area': cv2.INTER_AREA,}
 
-    def __init__(self, stack_path=None, font_path=None):
+    def __init__(self, stack_path=None, font_path=None, display_widgets=True):
         # Initialize widgets from shared dict
         widgets_dict = create_widgets()
         for key, value in widgets_dict.items():
@@ -47,24 +46,25 @@ class CalibratedImages():
         self.font_path = font_path
         self.stack_path = stack_path
         self.stack = DataLoader(stack_path) if stack_path else []
-        self.metadata = self.stack.raw_metadata if self.stack else {}
+        self.raw_data = self.stack.raw_data if self.stack else []
+        self.raw_metadata = self.stack.raw_metadata if self.stack else {}
         self.calibration_factor = None
         self.ref_fov = None
         self.calibration_display = Output()
 
         # Create widgets
-        self.slice_slider = IntSlider(min=0, max=len(self.stack.raw_data)-1 if self.stack else 0, 
+        self.slice_slider = IntSlider(min=0, max=len(self.raw_data)-1 if self.raw_data else 0, 
                                      value=0, description='Slice', continuous_update=False)
-        self.image_name = Text(value='image.png', description='Name:')
         self.save_image_button = Button(description="Save Image", tooltip="Save image with scalebar")
         self.save_for_figure_button = Button(description="Save Figure", tooltip="Save publication-quality image")
-        self.image_selector = Dropdown(options=[(f'Image {i}', i) for i in range(len(self.stack.raw_data))] if self.stack else [], 
+        self.image_selector = Dropdown(options=[(f'Image {i}', i) for i in range(len(self.raw_data))] if self.raw_data else [], 
                                       value=0, description='Image:')
         self.ref_image_index = self.image_selector.value
         self.update_reference_image({'new': self.ref_image_index}) 
 
         # Setup FFT calibration (but don't display it yet)
-        self.fft_calibration = FFTCalibration(self.stack, self.stack_path, display_fft=False)
+        self.fft_calibration = FFTCalibration(self.stack, self.stack_path, display_fft=False, 
+                                              font_path=self.font_path, font_size=8)
         self.fft_calibration.calibration_controls.layout.display = 'none'  
 
 
@@ -81,7 +81,8 @@ class CalibratedImages():
         self.tabs.set_title(2, 'Calibration')
         self.tabs.set_title(3, 'Save')
 
-        display(VBox([self.tabs, self.display_save_images()],layout={ 'width': '1000px', 'padding': '5px'}))
+        if display_widgets:
+            display(VBox([self.tabs, self.display_save_images()],layout={ 'width': '1000px', 'padding': '5px'}))
         self.setup_observers()
 
 
@@ -98,22 +99,22 @@ class CalibratedImages():
                 self.double_gaussian_weight_slider
             ])],
             [self.gamma_checkbox, self.gamma_slider],
-            [self.clahe_checkbox, VBox([
-                self.clahe_clip_slider, 
-                self.clahe_tile_slider
-            ])],
+            # [self.clahe_checkbox, VBox([
+            #     self.clahe_clip_slider, 
+            #     self.clahe_tile_slider
+            # ])],
             [self.brightness_checkbox, self.brightness_slider],
-            [self.sigmoid_checkbox, VBox([
-                self.sigmoid_alpha_slider, 
-                self.sigmoid_beta_slider
-            ])],
-            [self.closing_checkbox, self.closing_slider],
+            # [self.sigmoid_checkbox, VBox([
+            #     self.sigmoid_alpha_slider, 
+            #     self.sigmoid_beta_slider
+            # ])],
+            # [self.closing_checkbox, self.closing_slider],
             [self.kernel_size_checkbox, self.kernel_size_slider],
             [self.resize_checkbox, VBox([
                 self.resize_factor_slider, 
                 self.resize_method_dropdown
             ])],
-            [HBox([self.log_transform_checkbox, self.exp_transform_checkbox]), HTML("")]
+            # [HBox([self.log_transform_checkbox, self.exp_transform_checkbox]), HTML("")]
         ]
         
         # Set proper layout for all controls
@@ -333,6 +334,8 @@ class CalibratedImages():
                 lambda change, w=widgets: self.toggle_visibility(change, w), 
                 names='value'
             )
+        self.save_image_button.on_click(self.save_current_image)
+        self.save_for_figure_button.on_click(self.save_current_image)
 
 
     def toggle_visibility(self, change, widgets):
@@ -369,8 +372,6 @@ class CalibratedImages():
 
 
 
-
-
     def apply_filters(self, image, gamma, clahe_clip, clahe_tile, gaussian_sigma, contrast,
                  double_gaussian_sigma1, double_gaussian_sigma2, double_gaussian_weight,
                  kernel, brightness, sigmoid_alpha, sigmoid_beta):
@@ -386,6 +387,9 @@ class CalibratedImages():
         if self.contrast_checkbox.value:
             image = improve_contrast(image, contrast)  #Global contrast correction across the image
 
+        if self.brightness_checkbox.value:
+            image = cv2.add(image, brightness)
+
         # Apply Double Gaussian Filter
         if self.double_gaussian_checkbox.value:
             image = double_gaussian(image, double_gaussian_sigma1, double_gaussian_sigma2, double_gaussian_weight)
@@ -400,9 +404,6 @@ class CalibratedImages():
             image = apply_gamma_correction(image, gamma)
 
         # New filters
-        if self.brightness_checkbox.value:
-            image = cv2.add(image, brightness)
-
         if self.sigmoid_checkbox.value:
             image = apply_sigmoid_contrast(image, sigmoid_alpha, sigmoid_beta)
 
@@ -432,6 +433,8 @@ class CalibratedImages():
         # Apply morphological operations and normalization
         image = closing(image, closen, kernel)
         print(f"Image {slice_number} shape:", image.shape)
+        pixel_time_us = self.raw_metadata.get_specific_metadata("pixel_time_us", required_keys = ['scan_device_properties'])[slice_number]
+        print(f"Pixel time in microseconds: {pixel_time_us}")
         image = (image - np.min(image)) / (np.max(image) - np.min(image)) * 255 
         image = self.apply_filters(image, gamma, clahe_clip, clahe_tile, gaussian_sigma, contrast, double_gaussian_sigma1, double_gaussian_sigma2, double_gaussian_weight, kernel,
                     brightness, sigmoid_alpha, sigmoid_beta)
@@ -443,6 +446,14 @@ class CalibratedImages():
                             int(image.shape[0] * self.resize_factor_slider.value)), 
                             interpolation=interpolation_method)
             resize_factor = self.resize_factor_slider.value
+            print(f"New image shape after resizing: {image.shape}, save it with dpi = Number_of_pixels * 2.54 / (image_width_in_cm)")
+            if self.dtermine_fig_size_checkbox.value:
+                print(f"minimum required dpi for good quality printed image = {max(image.shape[1] * 2.54 / fig_x, image.shape[0] * 2.54 / fig_y)}")
+                print("""For good quality printed images with a dpi of 325 use the following:
+                      for 256 pixels width you need minimum of 2 cm width,
+                      for 512 pixels width you need minimum of 4 cm width,
+                      for 1024 pixels width you need minimum of 8 cm width,
+                      for 2048 pixels width you need minimum of 16 cm width""")
         else:
             resize_factor = 1.0
         
@@ -452,7 +463,7 @@ class CalibratedImages():
         fig_y_cm = fig_y / 2.54  # Convert cm to inches
         # Create image figure
         if not hasattr(self, 'fig1') or not plt.fignum_exists(self.fig1.number):
-            self.fig1, self.axs_img = plt.subplots(1, 2, figsize=(fig_x_cm, fig_y_cm), dpi=dpi_val, gridspec_kw={'wspace': 0, 'hspace': 0})
+            self.fig1, self.axs_img = plt.subplots(1, 2, figsize=(fig_x_cm /resize_factor, fig_y_cm/resize_factor), dpi=dpi_val, gridspec_kw={'wspace': 0, 'hspace': 0})
 
         
         # Clear image figure
@@ -491,24 +502,50 @@ class CalibratedImages():
             # self.axs_img[1].set_title('Full Image')
         
         self.fig1.canvas.draw()
-        # Update save function
-        def save_figure(b):
-            file_format = self.image_format_dropdown.value.lower()
-            base_name = self.image_name.value
-            
-            # Save image figure
-            img_filename = f"{base_name}.{file_format}"
-            self.fig1.set_size_inches(fig_x_cm, fig_y_cm)
-            self.fig1.savefig(img_filename, format=file_format, dpi=dpi_val, bbox_inches='tight')
-            print(f"Image figure saved as {img_filename}")
-        
-        self.save_for_figure_button.on_click(save_figure)
-        
+
         return image, cropped_image if self.specific_region_checkbox.value else image
 
 
 
-    def add_scalebar(self, ax, nm_per_pixel, scalebar_length, colormap=None, float_scale=False):
+    def save_current_image(self, b):
+        """Save the currently displayed image figure"""
+        if not hasattr(self, 'fig1'):
+            print("No image to save. Please display an image first.")
+            return
+        fig_x, fig_y,dpi_val = self.fig_x_text.value, self.fig_y_text.value, self.dpi_slider.value
+        fig_x_cm = fig_x / 2.54  # Convert cm to inches
+        fig_y_cm = fig_y / 2.54  # Convert cm to inches
+        file_format = self.image_format_dropdown.value.lower()  
+        base_name = self.image_name.value.strip()
+        
+        if not base_name.endswith(f".{file_format}"):
+            filename = f"{base_name}.{file_format}"
+        else:
+            filename = base_name
+
+        dir_name, image_name = os.path.split(filename)
+        # Default to current directory if no path specified
+        if dir_name == '':
+            dir_name = '.'
+
+        os.makedirs(dir_name, exist_ok=True)
+        file_path = os.path.join(dir_name, image_name)
+        
+        dpi_val = self.dpi_slider.value if self.dpi_checkbox.value else 300
+        self.fig1.set_size_inches(fig_x_cm, fig_y_cm)
+
+        # Save with proper settings
+        if file_format == 'svg':
+            import matplotlib as mpl
+            mpl.rcParams['svg.fonttype'] = 'none'
+            
+        self.fig1.savefig(file_path, format=file_format, dpi=dpi_val, bbox_inches='tight')
+        print(f"Image saved as {file_path}")
+
+
+
+
+    def add_scalebar(self, ax, nm_per_pixel, scalebar_length):
         """Add vector scale bar directly to existing axes"""
         # Clear previous scale bar elements
         for artist in ax.artists:
@@ -519,8 +556,6 @@ class CalibratedImages():
         img_size_y = ax.images[0].get_array().shape[0]
         img_size_x = ax.images[0].get_array().shape[1]
         img_size = img_size_x
-        # print(f"Image shape: {ax.images[0].get_array().shape}")
-        # print(f"Image size: {img_size} pixels")
         shift_pixels = img_size // 16
         
         # Calculate scale bar parameters
@@ -532,7 +567,7 @@ class CalibratedImages():
             scale_bar_pixels = int(scalebar_length / nm_per_pixel)
 
         if scale_bar_length_nm > 10:
-            scale_bar_length_nm = round(scale_bar_length_nm / 4) * 4
+            scale_bar_length_nm = round(scale_bar_length_nm / 5) * 5
         elif 10>=scale_bar_length_nm >= 1.5:
             scale_bar_length_nm = round(scale_bar_length_nm/2) * 2
         elif 0.5 < scale_bar_length_nm < 1.5:
@@ -557,7 +592,7 @@ class CalibratedImages():
             transform=ax.transAxes,
             facecolor='white',
             edgecolor='black',
-            linewidth=0.3,
+            linewidth=0.1,
             zorder=8
         )
         ax.add_artist(scale_bar)
@@ -569,10 +604,16 @@ class CalibratedImages():
             text = f"{scale_bar_length_nm:.1f} nm"
         text_x = ax_start_x + scale_bar_length_frac/2
         text_y = ax_start_y + scale_bar_thickness * 2
-        base_image_size_ref_font = 512
-        # Font size calculation matching original image.size/16 ratio
-        # font_size = (img_size / 16) * (base_image_size_ref_font/img_size)  # Converting to points
-        font_size = 10
+        font_size = 8
+
+        from matplotlib import font_manager as fm
+        import matplotlib as mpl
+        font_prop = fm.FontProperties(fname=self.font_path)
+        font_name = font_prop.get_name()
+        mpl.rcParams['font.family'] = font_name
+        mpl.rcParams['svg.fonttype'] = 'none' 
+        mpl.rcParams['font.weight'] = 'semibold'
+
         text_artist = ax.text(
             text_x, text_y, text,
             transform=ax.transAxes,
@@ -580,9 +621,8 @@ class CalibratedImages():
             ha='center',
             va='bottom',
             fontsize=font_size,
-            fontproperties=FontProperties(fname=self.font_path),
-            path_effects=[patheffects.withStroke(linewidth=0.5, foreground="black")]
         )
+
         return ax
     
     def display_save_images(self):

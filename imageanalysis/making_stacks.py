@@ -1,8 +1,17 @@
+"""
+This script processes directories containing STEM images (or EELS data with their corresponding ADF images),
+saving them in HDF5 format or as pickled files with their metadata.
+Author: Somar Dibeh
+Date: 2025-06-16
+"""
+
+
 import os
 import re
 import json
 import h5py
 import joblib
+from datetime import datetime
 from data_loader import DataLoader, EELSLazyLoader
 
 
@@ -21,30 +30,53 @@ def dict_to_json_serializable(d):
     return _convert(d)
 
 
+###################### save stack as HDF5 #####################
+def extract_timestamp(filename):
+    """Extract timestamp from filename and convert to datetime object"""
+    # Regex pattern to match ISO 8601 timestamp in filename
+    pattern = r"(\d{4}-\d{2}-\d{2}T\d{6}(\.\d+)?)"
+    match = re.search(pattern, filename)
+    if not match:
+        return None
+    
+    ts_str = match.group(1)
+    try:
+        # Handle timestamps with fractional seconds
+        if '.' in ts_str:
+            base, fractional = ts_str.split('.', 1)
+            dt_base = datetime.strptime(base, "%Y-%m-%dT%H%M%S")
+            fractional = fractional.ljust(6, '0')[:6]  # Normalize to microseconds
+            return dt_base.replace(microsecond=int(fractional))
+        # Handle timestamps without fractional seconds
+        else:
+            return datetime.strptime(ts_str, "%Y-%m-%dT%H%M%S")
+    except ValueError:
+        return None
+    
 
 ###################### save stack as HDF5 #####################
-def save_stack_hdf5(directory, output_file="stacktest.h5"):
+def save_stack_hdf5(directory, output_file="stack.h5", sort_by='fov'):
+    # Precompile regex pattern for efficiency
+    timestamp_pattern = re.compile(r"(\d{4}-\d{2}-\d{2}T\d{6}(\.\d+)?)")
+    
     with h5py.File(os.path.join(directory, output_file), "w") as hf:
         img_group = hf.create_group("images")
         meta_group = hf.create_group("metadata")
 
-        valid_files = sorted([
+        valid_files = [
             f for f in os.listdir(directory) 
-            if f.endswith('.ndata1') and 'SuperScan (HAADF) (Gaussian Blur)' not in f
-        ])
+            if f.endswith('.ndata1') and 'FFT' not in f
+        ]
 
-        fov_data = []
+        file_data = []
 
         for idx, filename in enumerate(valid_files):
             file_path = os.path.join(directory, filename)
             imageseq = DataLoader(file_path)
 
+            # Extract metadata
             try:
                 raw_meta = imageseq.raw_metadata or {}
-            except AttributeError:
-                raw_meta = {}
-
-            try:
                 metadata_dict = raw_meta[0] if hasattr(raw_meta, '__getitem__') else raw_meta
             except Exception:
                 metadata_dict = {}
@@ -61,25 +93,35 @@ def save_stack_hdf5(directory, output_file="stacktest.h5"):
                 except Exception:
                     pass
 
+            # Extract timestamp from filename
+            timestamp = extract_timestamp(filename)
+            timestamp_str = timestamp.isoformat() if timestamp else "unknown"
 
             try:
                 img = imageseq.raw_data[0] 
             except Exception:
                 continue
 
-            fov_data.append((idx, fov, img, metadata_dict))
+            file_data.append((idx, fov, timestamp, img, metadata_dict, timestamp_str))
 
-        # Sort by FOV (lowest first; unknown at end)
-        fov_data.sort(key=lambda x: x[1])
+        # Sorting logic
+        if sort_by == 'time':
+            file_data.sort(key=lambda x: x[2] or datetime.max)  # Unknown timestamps last
+            sorting_info = "timestamp (unknown at end)"
+        else:  # Default to FOV sorting
+            file_data.sort(key=lambda x: x[1])
+            sorting_info = "fov_nm (unknown FOV at end)"
 
-        for new_idx, (orig_idx, fov, img, meta) in enumerate(fov_data):
+        for new_idx, (orig_idx, fov, timestamp, img, meta, ts_str) in enumerate(file_data):
             # Store image
             img_ds = img_group.create_dataset(
                 name=f"image_{new_idx:04d}",
                 data=img,
                 compression="gzip"
             )
+            # Store both FOV and timestamp attributes regardless of sorting
             img_ds.attrs["fov_nm"] = fov if fov != float('inf') else "unknown"
+            img_ds.attrs["timestamp"] = ts_str
 
             # Store metadata
             meta_ds = meta_group.create_dataset(
@@ -93,20 +135,21 @@ def save_stack_hdf5(directory, output_file="stacktest.h5"):
             meta_ds.attrs["image_ref"] = f"image_{new_idx:04d}"
             meta_ds.attrs["original_index"] = orig_idx
 
-        hf.attrs["sorting"] = "fov_nm (unknown FOV at end)"
-        hf.attrs["sorting_version"] = "1.0"
+        # Record sorting method in file attributes
+        hf.attrs["sorting"] = sorting_info
+        hf.attrs["sorting_method"] = sort_by
+        hf.attrs["sorting_version"] = "2.0"
 
-
-def process_directory_h5(directory, output_file="stack.h5"):
-    # Always process subdirectories first
+def process_directory_h5(directory, output_file="stack.h5", sort_by='fov'):
+    # Process subdirectories first
     for subdir in os.listdir(directory):
         subdir_path = os.path.join(directory, subdir)
         if os.path.isdir(subdir_path):
-            process_directory_h5(subdir_path, output_file)
+            process_directory_h5(subdir_path, output_file, sort_by)
     
-    # Then process current directory if it has .ndata1 files
+    # Process current directory if it contains .ndata1 files
     if any(f.endswith('.ndata1') for f in os.listdir(directory)):
-        save_stack_hdf5(directory, output_file)
+        save_stack_hdf5(directory, output_file, sort_by)
 
 
 ####################### save stack as pickle #####################
@@ -140,7 +183,6 @@ def process_directory_pkl(directory):
             subdir_path = os.path.join(directory, subdir)
             if os.path.isdir(subdir_path):
                 process_directory_pkl(subdir_path)
-
 
 
 ######################## save EELS pairs as HDF5 #####################
@@ -227,5 +269,7 @@ def save_eels_pairs_hdf5(directory, output_file="eels_pairs.h5"):
 if __name__ == "__main__":
     # process_directory_pkl('/home/somar/Desktop/2025/Data for publication/Sample 2344/ADF images/')
     # process_directory_h5('/home/somar/Desktop/2025/Data for publication/Sample 2344/ADF images/After_Heating_200C/', output_file="test_stack.h5")
-    process_directory_h5('/home/somar/Desktop/2025/Data for publication/Multilayer graphene/', output_file="stacktest1.h5")    
+    # process_directory_h5('/home/somar/Desktop/2025/Data for publication/Multilayer graphene/', output_file="stacktest1.h5")
+    process_directory_h5('/home/somar/Desktop/2025/Data for publication/Sample 2525/before heating 150/', output_file="stacks.h5")    
+  
     # save_eels_pairs_hdf5('/home/somar/Desktop/2025/Data for publication/Sample 2344/EELS/')

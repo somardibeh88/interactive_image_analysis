@@ -22,7 +22,7 @@ from .data_loader import DataLoader
 from .filters import *
 from .joint_widgets import *
 
-plt.rcParams.update({'font.size': 10})
+plt.rcParams.update({'font.size': 8})
 
 
 class FFTCalibration():
@@ -30,12 +30,13 @@ class FFTCalibration():
     calibration_types = ['hexagonal','2nd-order-hexagonal', 'graphene-2L','graphene-3L', 'graphene-4L', 'graphene-5L']
     fft_orders = ['1st-order', '2nd-order']
 
-    def __init__(self, stack, stack_path=None, display_fft=False):
+    def __init__(self, stack, stack_path=None, display_fft=False, font_path=None, font_size=8):
                
         widgets_dict = create_widgets()
         for name, widget in widgets_dict.items():
             setattr(self, f"{name}_fft_calib", widget)
-            
+        self.font_path = font_path 
+        self.font_size = font_size
         self.stack = stack
         self.metadata = self.stack.raw_metadata if hasattr(self.stack, 'raw_metadata') else None
         self.stack_path = stack_path if stack_path else getattr(stack, 'path', None)
@@ -350,7 +351,8 @@ class FFTCalibration():
 
     def _get_ref_fov(self):
         if self.metadata is not None:
-            metadata = self.metadata[f"metadata_{self.ref_image_index:04d}"]
+            # metadata = self.metadata[f"metadata_{self.ref_image_index:04d}"]
+            metadata = self.metadata[self.ref_image_index]
             self.ref_fov = self.metadata.get_specific_metadata('fov_nm', required_keys=['scan_device_properties'], data=metadata)
             if len(self.ref_fov) > 0:
                 self.ref_fov = self.ref_fov[0]
@@ -374,7 +376,8 @@ class FFTCalibration():
         if self._last_calibration == (slice_number, self.calibration_factor):
             return self._cached_nm_per_pixel, self._cached_nm_per_pixel**2
         # Calibration
-        meta = self.metadata[f"metadata_{slice_number:04d}"]
+        # meta = self.metadata[f"metadata_{slice_number:04d}"]
+        meta = self.metadata[slice_number]
         fov = self.metadata.get_specific_metadata('fov_nm', required_keys=['scan_device_properties'], data=meta)
         if len(fov) > 0:
             fov = fov[0]
@@ -396,9 +399,9 @@ class FFTCalibration():
             print(f'Calibrated FOV: {fov_calibrated:.2f} nm', 'FOV from metadata:', fov)
 
         else:
-            print('Not calibrated yet, using a default values of 1 nm/pixel')
-            nm_per_pixel = 1
-            nm2_per_pixel2 = 1
+            print('Not calibrated yet, using a default values of 0.01 nm/pixel')
+            nm_per_pixel = 0.01
+            nm2_per_pixel2 = 0.01
 
         self._last_calibration = (slice_number, self.calibration_factor)
         self._cached_nm_per_pixel = nm_per_pixel
@@ -506,7 +509,7 @@ class FFTCalibration():
             with self.calibration_display:
                 clear_output(wait=True)
                 if not hasattr(self, 'cal_fig') or not plt.fignum_exists(self.cal_fig.number):
-                    self.cal_fig, self.cal_ax1 = plt.subplots(1, 2, figsize=(16, 8))
+                    self.cal_fig, self.cal_ax1 = plt.subplots(1, 2, figsize=(4, 2))
                     self.cal_fig.show()
                 else:
                     # Clear previous content
@@ -569,6 +572,14 @@ class FFTCalibration():
 
 
     def save_fft_image(self, b):
+        import matplotlib as mpl
+        from matplotlib import font_manager as fm
+
+        # Setup font properties
+        font_prop = fm.FontProperties(fname=self.font_path, size=self.font_size, weight='semibold') 
+
+        # Ensure SVG text remains as vector elements
+        mpl.rcParams['svg.fonttype'] = 'none'
 
         """Saves both the calibration image and FFT analysis as separate SVG files"""
         if not hasattr(self, 'current_ft_vis') or not hasattr(self, 'current_ref_image_fft'):
@@ -580,19 +591,23 @@ class FFTCalibration():
         ref_filename = f"{base_name}_slice({self.ref_image_index})_ref.svg"
         fft_filename = f"{base_name}_slice({self.ref_image_index})_fft.svg"
         if '/' in ref_filename:
-            ref_img_fft = ref_filename.split('/')[-1]
-            dir_name  = ref_filename.split('/')[0]
+            dir_name, ref_img_fft = os.path.split(ref_filename)
+            if dir_name == '':
+                dir_name = '.'         # This will avoid having error if the path is just a filename and no directory included
             os.makedirs(dir_name, exist_ok=True)
             ref_filename = os.path.join(dir_name, ref_img_fft)
         if '/' in fft_filename:
-            fft_img_fft = fft_filename.split('/')[-1]
-            dir_name  = fft_filename.split('/')[0]
+            dir_name, fft_img_fft = os.path.split(fft_filename)
+            if dir_name == '':
+                dir_name = '.'
+            # Create directory if it doesn't exist
             os.makedirs(dir_name, exist_ok=True)
             fft_filename = os.path.join(dir_name, fft_img_fft)
 
 
-        fig_ref, ax_ref = plt.subplots(figsize=(16, 8), dpi=300)
-        ax_ref.imshow(self.current_ref_image_fft, cmap=self.current_colormap)
+        fig_ref, ax_ref = plt.subplots(figsize=(4  , 2), dpi=300)
+        im = ax_ref.imshow(self.current_ref_image_fft, cmap=self.current_colormap)
+        im.set_rasterized(True)
 
         # Draw region rectangle if region selection is active
         if self.calibrate_region_checkbox_fft_calib.value:
@@ -608,8 +623,9 @@ class FFTCalibration():
         if not self.save_for_figure_checkbox_fft_calib.value:
             info_text = (f"Slice: {self.ref_image_index}\ncalibration factor: {self.calibration_factor:.6f} nm/pixel\n"
                         f"FOV: {self.ref_fov:.2f} nm\nCalibrated FOV: {self.ref_image_shape * self.calibration_factor:.2f} nm")
-            anchored_text = AnchoredText(info_text, loc='upper left', prop=dict(size=12),
+            anchored_text = AnchoredText(info_text, loc='upper left',
                                         frameon=True, pad=0.5, borderpad=0.5)
+            anchored_text.txt._text.set_fontproperties(font_prop)
             anchored_text.patch.set_boxstyle("round,pad=0.3")
             anchored_text.patch.set_facecolor("white")
             anchored_text.patch.set_alpha(0.9)
@@ -620,8 +636,9 @@ class FFTCalibration():
             plt.close(fig_ref)
 
             # Save FFT analysis
-            fig_fft, ax_fft = plt.subplots(figsize=(5, 5), dpi=200)
-            ax_fft.imshow(self.current_ft_vis, cmap=self.current_colormap)
+            fig_fft, ax_fft = plt.subplots(figsize=(2, 2), dpi=300)
+            im1 = ax_fft.imshow(self.current_ft_vis, cmap=self.current_colormap)
+            im1.set_rasterized(True)
             ax_fft.plot(*self.current_spots.T, 'wo', mfc='none', 
                     markersize=5 * (140/self.current_n), alpha=0.5)
             ax_fft.set_xlim(self.current_ft_vis.shape[0]//2 - self.current_n,
@@ -641,8 +658,9 @@ class FFTCalibration():
                 f"Calibration factor: {self.calibration_factor:.5f} nm/pixel\n"
                 f"{txt_angle_mismatches}")
 
-            anchored_text = AnchoredText(info_text, loc='upper left', prop=dict(size=12),
+            anchored_text = AnchoredText(info_text, loc='upper left',
                                         frameon=True, pad=0.5, borderpad=0.5)
+            anchored_text.txt._text.set_fontproperties(font_prop)
             anchored_text.patch.set_boxstyle("round,pad=0.3")
             anchored_text.patch.set_facecolor("white")
             anchored_text.patch.set_alpha(0.9)
@@ -664,28 +682,31 @@ class FFTCalibration():
                 info_text = (f"Number of layers: {self.calibration_type_dropdown_fft_calib.value[-2]}\n"
                     f"{txt_angle_mismatches}")
                 # Save the images with the same name
-                fig_ref, ax_ref = plt.subplots(figsize=(16, 8), dpi=300)
-                anchored_text = AnchoredText(info_text, loc='upper left', prop=dict(size=12),
+                fig_ref, ax_ref = plt.subplots(figsize=(4, 2), dpi=300)
+                anchored_text = AnchoredText(info_text, loc='upper left',
                                 frameon=True, pad=0.5, borderpad=0.5)
+                anchored_text.txt._text.set_fontproperties(font_prop)
                 anchored_text.patch.set_boxstyle("round,pad=0.3")
                 anchored_text.patch.set_facecolor("white")
                 anchored_text.patch.set_alpha(0.9)
                 ax_ref.add_artist(anchored_text)
 
             else:
-                fig_ref, ax_ref = plt.subplots(figsize=(16, 8), dpi=300)
-            ax_ref.imshow(self.current_ref_image_fft, cmap=self.current_colormap)
+                fig_ref, ax_ref = plt.subplots(figsize=(4, 2), dpi=300)
+            im = ax_ref.imshow(self.current_ref_image_fft, cmap=self.current_colormap)
+            im.set_rasterized(True)
             ax_ref.axis('off')
             plt.savefig(ref_filename, bbox_inches='tight', format='svg', pad_inches=0)
             plt.close(fig_ref)
 
             # Save FFT analysis
-            fig_fft, ax_fft = plt.subplots(figsize=(5, 5), dpi=200)
+            fig_fft, ax_fft = plt.subplots(figsize=(2, 2), dpi=300)
             ax_fft.imshow(self.current_ft_vis, cmap=self.current_colormap)
 
             if self.calibration_type_dropdown_fft_calib.value not in ['hexagonal', '2nd-order-hexagonal']:
-                anchored_text1 = AnchoredText(info_text, loc='upper left', prop=dict(size=10),
+                anchored_text1 = AnchoredText(info_text, loc='upper left',
                     frameon=True, pad=0.5, borderpad=0.5)
+                anchored_text.txt._text.set_fontproperties(font_prop)
                 ax_fft.add_artist(anchored_text1)
 
             if self.current_n <= 150:
@@ -713,7 +734,7 @@ class FFTCalibration():
 if __name__ == "__main__":
     # Example usage
     stacks_ssb1 = ['/home/somar/Desktop/2025/Data for publication/Sample 2525/SSB reconstruction of 4d STEM data/stack.h5']
-    from data_loader import DataLoader
+    from imageanalysis.data_loader import DataLoader
     img = DataLoader(stacks_ssb1[0])
     fft_calibration = FFTCalibration(img)
     fft_calibration.fft_calibrate()

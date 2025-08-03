@@ -66,10 +66,7 @@ class MetadataMethods:
             return extracted_values[0]
         return extracted_values
     
-    def _get_full_metadata(self):
-        """Get full metadata structure - to be implemented by subclasses"""
-        return []
-
+    
 
 # ================== Unified Loader for different file formats ==================
 class UnifiedLoader:
@@ -174,7 +171,7 @@ class UnifiedLoader:
         """Lazy loader for TIFF files"""
         self.tiff_file = tifffile.TiffFile(self.file_path)
         
-        # Create lazy accessors for images and metadata
+        # lazy accessors for images and metadata
         class TiffImageLoader:
             def __init__(self, tiff_file):
                 self.tiff_file = tiff_file
@@ -212,18 +209,17 @@ class UnifiedLoader:
     def _load_ndata(self):
         """Eager loader for NDATA files"""
         with zipfile.ZipFile(self.file_path, 'r') as zip_file:
-            # Load image data
+            # Loading the data
             with zip_file.open('data.npy') as f:
                 data = np.load(f)
             
-            # Load metadata
+            # Loading metadata
             try:
                 with zip_file.open('metadata.json') as f:
                     metadata = json.load(f)
             except KeyError:
                 metadata = {}
 
-        # Create in-memory accessors
         class ImmediateImageLoader:
             def __init__(self, data):
                 self.data = data
@@ -232,26 +228,29 @@ class UnifiedLoader:
             def __getitem__(self, index):
                 if self.data.ndim == 3:
                     return self.data[index]
-                return self.data  # Single image
-                
+                elif self.data.ndim == 2 and index == 0:
+                    return self.data
+                else:
+                    raise IndexError("Index out of bounds for 2D data")
             def __len__(self):
                 return self.data.shape[0] if self.data.ndim == 3 else 1
         
         class ImmediateMetadataLoader(MetadataMethods):
-            def __init__(self, metadata):
+            def __init__(self, metadata, data):
                 self.metadata = metadata
-                
+                self.data = data
+
             def __getitem__(self, index):
                 return self.metadata
-                
+
             def __len__(self):
                 return 1
                 
-            def _get_full_metadata(self):
+            def _get_full_metadata(self):   
                 return self.metadata
 
         self.raw_data = ImmediateImageLoader(data)
-        self.raw_metadata = ImmediateMetadataLoader(metadata)
+        self.raw_metadata = ImmediateMetadataLoader(metadata,data)
     
     def _load_pkl(self):
         """Loader for PKL files"""
@@ -325,42 +324,7 @@ class DataLoader:
     def get_metadata_item(self, key):
         """Get metadata item by key (for HDF5 metadata access)"""
         return self.raw_metadata[key]
-   
-
-# ================== Lazy Loader Classes ==================
-class ImageLazyLoader:
-    def __init__(self, h5_file, group_name):
-        self._h5_file = h5_file
-        self._group = self._h5_file[group_name]
-        
-    def __getitem__(self, index):
-        return self._group[f"image_{index:04d}"][:]
-    
-    def __len__(self):
-        return len(self._group)
-
-class MetadataLazyLoader(MetadataMethods):
-    def __init__(self, h5_file):
-        self._h5_file = h5_file
-        self._group = self._h5_file['metadata']
-        # Extract keys and sort by index
-        self.keys = sorted(self._group.keys(), key=lambda x: int(x.split('_')[-1]))
-        
-    def __getitem__(self, index):
-        if isinstance(index, int):
-            key = self.keys[index]
-        elif isinstance(index, str):
-            key = index
-        else:
-            raise TypeError("Index must be int or str")
-        return json.loads(self._group[key].asstr()[()])
-    
-    def __len__(self):
-        return len(self._group)
-    
-    def _get_full_metadata(self):
-        return [self[i] for i in range(len(self))]
-    
+  
 
 
 #####################  EELS Lazy Loader #####################

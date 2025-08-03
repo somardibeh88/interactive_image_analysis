@@ -1,10 +1,12 @@
 sample data files/
+documentation/
 imageanalysis/interactive_image_analysis.py
 imageanalysis/eels_new.ipynb
 imageanalysis/making_eels_stacks.ipynb
 imageanalysis/making_h5_stacks.ipynb
 imageanalysis/utils.py
 imageanalysis.egg-info/
+imageanalysis/simulate.py
 **/*.h5
 **/*.hdf5
 **/*.pkl
@@ -20,3 +22,4 @@ imageanalysis.egg-info/
 **/*.svg
 **/*.tiff   
 **/*.tif
+myenv_backup.yml

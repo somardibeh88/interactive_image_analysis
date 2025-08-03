@@ -2,7 +2,7 @@ import os
 import json
 import h5py
 import re
-from imagesequence import ImageSequence
+from imageanalysis.data_loader import DataLoader, EELSLazyLoader
 
 def dict_to_json_serializable(d):
     """Recursively convert non-serializable values to strings"""
@@ -55,7 +55,7 @@ def save_eels_pairs_hdf5(directory, output_file="eels_pairs.h5"):
             
             # Process point spectrum
             try:
-                pt_seq = ImageSequence(pt_path)
+                pt_seq = DataLoader(pt_path)
                 pt_data = pt_seq.raw_data.squeeze()  # Convert to 1D
                 pt_meta = pt_seq.raw_metadata or {}
             except Exception as e:
@@ -64,7 +64,7 @@ def save_eels_pairs_hdf5(directory, output_file="eels_pairs.h5"):
                 
             # Process image
             try:
-                img_seq = ImageSequence(img_path)
+                img_seq = DataLoader(img_path)
                 img_data = img_seq.raw_data.squeeze()  
                 img_meta = img_seq.raw_metadata or {}
             except Exception as e:
