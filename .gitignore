@@ -6,8 +6,8 @@ imageanalysis/making_eels_stacks.ipynb
 imageanalysis/making_h5_stacks.ipynb
 imageanalysis/utils.py
 imageanalysis.egg-info/
-imageanalysis/simulate.py
 imageanalysis/Sample_2476/
+imageanalysis/testing.ipynb
 **/*.h5
 **/*.hdf5
 **/*.pkl

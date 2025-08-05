@@ -83,11 +83,11 @@ def create_widgets():
     feature_analysis_type_dropdown = Dropdown(options=feature_analysis_type, value='Single_atom_clusters_analysis', description='Feature Analysis Type:', style={'description_width': '260px'}, layout={'width': '500px'})
 
 
-    image_name = Text(value='image', description='Name:')
-    save_image_button = Button(description="Save Image", tooltip="Save image with scalebar", layout={'width': '160px'})
+    image_name = Text(value='image', description='Name:', style={'description_width': '140px'}, layout={'width': '95%'})
+    save_image_button = Button(description="Save Image", tooltip="Save image with scalebar", layout={'width': '220px'})
     save_for_figure_button = Button(description="Save Figure", tooltip="Save image with scalebar", layout={'width': '160px'})
-    save_button = Button(description="Save", tooltip="Save the data point to a CSV file. A new file will be created if one does not exist", layout={'width': '160px'})
-    filename_input = Text(value='analysis_results', description='Filename:', style={'description_width': '100px'}, layout={'width': '400px'})
+    save_button = Button(description="Save", tooltip="Save the data point to a CSV file. A new file will be created if one does not exist", layout={'width': '220px'})
+    filename_input = Text(value='analysis_results', description='Filename:', style={'description_width': '140px'}, layout={'width': '96%'})
 
     ###################### VCR widget ######################
     display_vcr_checkbox = Checkbox(value=False, description='Display VCR stack', layout={'width': '95%'})
@@ -130,11 +130,13 @@ def create_widgets():
     dtermine_fig_size_checkbox = Checkbox(value=False, description='Determine figure size')
 
     # Sliders for two-steps thresholding image analysis
-    threshold_slider = FloatSlider(min=0, max=255, value=100, step=0.1, description='Threshold', style={'description_width': '120px'}, layout={'display': 'none', 'width': '95%'},continuous_update=False)
-    threshold_sa_slider = FloatSlider(min=0, max=255, value=100, step=0.1, description='Threshold_sa', style={'description_width': '120px'}, layout={'width': '95%'}, continuous_update=False)
+    threshold_slider1 = FloatSlider(min=0, max=255, value=100, step=0.1, description='Threshold1', style={'description_width': '120px'}, layout={'display': 'none', 'width': '95%'},continuous_update=False)
+    threshold_slider2 = FloatSlider(min=0, max=255, value=100, step=0.1, description='Threshold2', style={'description_width': '120px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
+    threshold_sa_slider1 = FloatSlider(min=0, max=255, value=50, step=0.1, description='Threshold_sa1', style={'description_width': '120px'}, layout={'display': 'none','width': '95%'}, continuous_update=False)
+    threshold_sa_slider2 = FloatSlider(min=0, max=255, value=50, step=0.1, description='Threshold_sa2', style={'description_width': '120px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
 
-    min_clean_cont_area_slider = FloatSlider(min=0, max=100, value=50, step=0.02, description='Min Clean_Cont Area', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
-    max_clean_cont_area_slider = FloatSlider(min=0, max=120000, value=10000, step=5, description='Max Clean_Cont Area', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
+    min_clean_cont_area_slider = FloatSlider(min=0, max=10000, value=50, step=0.02, description='Min Clean_Cont Area', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
+    max_clean_cont_area_slider = FloatSlider(min=0, max=4200000, value=10000, step=5, description='Max Clean_Cont Area', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
     min_cluster_area_slider = FloatSlider(min=0, max=200, value=0.1, step=0.001, description='Min Clust_sa Area', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, readout_format='.3f', continuous_update=False)
     max_cluster_area_slider = FloatSlider(min=0, max=2000, value=1, step=0.005, description='Max Cluster_sa Area', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, readout_format='.3f', continuous_update=False)
     min_circularity_slider = FloatSlider(min=0, max=1, value=0.05, step=0.01, description='Min Circularity', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, readout_format='.3f', continuous_update=False)
@@ -143,7 +145,8 @@ def create_widgets():
     make_circular_thresh_slider = FloatSlider(min=0, max=2, value=0.03, step=0.005, description='Make circular thresh', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})                
     make_circular_thresh_checkbox = Checkbox(value=False, description='Make circular thresh')
 
-
+    number_of_layers_text = IntText(value=1, description='Number of layers:', style={'description_width': '140px'}, layout={'width': '95%'})
+    number_of_layers_button = Button(description="Set Number of Layers", tooltip="Set the number of layers for the analysis", layout={'width': '220px'})
     #############################  Morphological operations widgets #######################################
     opening_slider = IntSlider(min=0, max=10, value=0, description='Opening Iterations',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
     closing_slider = IntSlider(min=0, max=10, value=0, description='Closing Iterations',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})

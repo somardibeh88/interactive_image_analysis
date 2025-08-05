@@ -29,6 +29,7 @@ import imageanalysis.fft_calibration_class as fc
 from imageanalysis.fft_calibration_class import *
 from joint_widgets import create_widgets
 from imageanalysis.calibrated_images_class import CalibratedImages
+from multiprocessing import Pool, cpu_count
 
 cv2.ocl.setUseOpenCL(False)
 
@@ -50,6 +51,10 @@ class FeaturesAnalysis():
         self.font_path = font_path
         self.stack = DataLoader(self.stack_path) if self.stack_path else []
         self.metadata = self.stack.raw_metadata if self.stack else {}
+
+        self.pool = Pool(processes=12)  # Using 12 processes for multiprocessing
+
+
         self.calibration_factor = None
         self.ref_fov = None
         self.calibration_display = Output()
@@ -63,6 +68,8 @@ class FeaturesAnalysis():
         # Setup FFT calibration (but don't display it yet)
         self.fft_calibration = FFTCalibration(self.stack, self.stack_path, display_fft=False)
         self.fft_calibration.calibration_controls.layout.display = 'none'  
+
+        self.save_image_button.on_click(self.save_current_figure)
 
 
         self.setup_observers()
@@ -187,7 +194,7 @@ class FeaturesAnalysis():
         # Define rows with their widgets
         rows = [
             [self.analysis_type_dropdown],  # Single widget row
-            [self.threshold_checkbox, self.threshold_slider],
+            [self.threshold_checkbox, self.threshold_slider1, self.threshold_slider2],
             [self.min_clean_cont_area_checkbox, self.min_clean_cont_area_slider],
             [self.max_clean_cont_area_checkbox, self.max_clean_cont_area_slider],
             [self.dilation_checkbox, self.dilation_slider],
@@ -253,9 +260,9 @@ class FeaturesAnalysis():
 
 
     def second_thresholding_tab(self):
-        grid_children = [
+        rows = [
             [self.contour_retrieval_dropdown, self.contour_approximation_dropdown],
-            [self.threshold_sa_checkbox, self.threshold_sa_slider],
+            [self.threshold_sa_checkbox, self.threshold_sa_slider1, self.threshold_sa_slider2],
             [self.min_cluster_area_checkbox, self.min_cluster_area_slider],
             [self.max_cluster_area_checkbox, self.max_cluster_area_slider],
             [self.dilation2_checkbox, self.dilation2_slider],
@@ -264,25 +271,38 @@ class FeaturesAnalysis():
             [self.closing2_checkbox, self.closing2_slider],
 
         ]
-        for pair in grid_children:
-            # Set checkbox layout
-            if isinstance(pair[0], Checkbox):
-                pair[0].layout.width = 'auto'
-                pair[0].layout.margin = '0 15px 0 0'
-            
-            # Set slider layout
-            if isinstance(pair[1], (FloatSlider, IntSlider)):
-                pair[1].layout.width = '300px'
-                pair[1].layout.flex = '1 1 auto'
+        # Process each widget in each row
+        for row in rows:
+            for widget in row:
+                # Apply consistent styling to all widgets
+                if isinstance(widget, Checkbox):
+                    widget.layout.width = 'auto'
+                    widget.layout.margin = '0 15px 0 0'
+                elif isinstance(widget, (FloatSlider, IntSlider)):
+                    widget.layout.width = '300px'
+                    widget.layout.flex = '1 1 auto'
+                elif isinstance(widget, Dropdown):
+                    widget.layout.width = 'auto'
 
-        grid_rows = [HBox([pair[0], pair[1]], 
-                     layout=Layout(
-                         justify_content='space-between',
-                         align_items='center',
-                         width='100%',
-                         margin='5px 0'
-                     )) for pair in grid_children]
-
+        # Create grid rows with appropriate layout
+        grid_rows = []
+        for row in rows:
+            if len(row) == 1:
+                # Center single widgets
+                hbox = HBox(row, layout=Layout(
+                    justify_content='center',
+                    width='100%',
+                    margin='5px 0'
+                ))
+            else:
+                # Space between multiple widgets
+                hbox = HBox(row, layout=Layout(
+                    justify_content='space-between',
+                    align_items='center',
+                    width='100%',
+                    margin='5px 0'
+                ))
+            grid_rows.append(hbox)
 
         return VBox([
             HTML("<h4 style='margin-bottom: 15px;'>2nd Morphological Operations</h4>"),
@@ -295,16 +315,15 @@ class FeaturesAnalysis():
             HTML("<h4 style='margin-top: 20px; margin-bottom: 15px;'>Display Options</h4>"),
             HBox([
                 VBox([self.slice_slider], 
-                     layout=Layout(width='45%', margin='0 10px 0 0')),
+                    layout=Layout(width='45%', margin='0 10px 0 0')),
                 VBox([self.colormap_dropdown], 
-                     layout=Layout(width='45%', margin='0 0 0 10px'))
+                    layout=Layout(width='45%', margin='0 0 0 10px'))
             ], layout=Layout(
                 width='100%',
                 justify_content='space-between',
                 margin='10px 0'
             ))
         ], layout=Layout(padding='15px'))
-    
 
 
     def feature_analysis_tab(self):
@@ -379,20 +398,34 @@ class FeaturesAnalysis():
         ], layout=Layout(padding='15px'))
 
 
-
     def create_save_tab(self):
         return VBox([
             HTML("<h4 style='margin-bottom: 15px;'>Save & Export</h4>"),
+            
+            # Row 1: number_of_layers_text + number_of_layers_button
             HBox([
-                VBox([self.image_name, self.filename_input], layout=Layout(width='45%', margin='0 10px 0 0')),
-                VBox([self.save_image_button, self.save_button], layout=Layout(width='45%', margin='0 0 0 10px'))
-            ], layout=Layout(
-                width='100%',
-                justify_content='space-between',
-                margin='10px 0'
-            )),
+                self.number_of_layers_text,
+                self.number_of_layers_button
+            ], layout=Layout(justify_content='space-between', width='80%', margin='0 0 10px 0')),
+            
+            # Row 2: image_name + filename_input
+            HBox([
+                self.image_name,
+                self.save_image_button
+
+            ], layout=Layout(justify_content='space-between', width='80%', margin='0 0 10px 0')),
+            
+            # Row 3: save_image_button + save_button
+            HBox([                
+                self.filename_input,
+                self.save_button
+            ], layout=Layout(justify_content='space-between', width='80%', margin='0 0 10px 0')),
+            
+            # Optional calibration display
             self.calibration_display
+
         ], layout=Layout(padding='15px'))
+
 
 
 
@@ -409,14 +442,14 @@ class FeaturesAnalysis():
             self.brightness_checkbox: [self.brightness_slider],
             self.kernel_size_checkbox: [self.kernel_size_slider],
             self.resize_checkbox: [self.resize_factor_slider, self.resize_method_dropdown],
-            self.threshold_checkbox: [self.threshold_slider],
+            self.threshold_checkbox: [self.threshold_slider1, self.threshold_slider2],
             self.dilation_checkbox: [self.dilation_slider],
             self.erosion_checkbox: [self.erosion_slider],
             self.opening_checkbox: [self.opening_slider],
             self.closing_checkbox: [self.closing_slider],
             self.boundary_checkbox: [self.boundary_slider],
             self.gradient_checkbox: [self.gradient_slider],
-            self.threshold_sa_checkbox: [self.threshold_sa_slider],
+            self.threshold_sa_checkbox: [self.threshold_sa_slider1, self.threshold_sa_slider2],
             self.dilation2_checkbox: [self.dilation2_slider],
             self.erosion2_checkbox: [self.erosion2_slider],
             self.opening2_checkbox: [self.opening2_slider],
@@ -569,7 +602,6 @@ class FeaturesAnalysis():
     def calculate_isolation(self, contours, nm_per_pixel, isolation_distance):
         """Optimized isolation check with spatial partitioning + multiprocessing"""
         from scipy.spatial import KDTree
-        from multiprocessing import Pool, cpu_count
         n = len(contours)
         isolation_mask = np.ones(n, dtype=bool)
 
@@ -587,12 +619,12 @@ class FeaturesAnalysis():
         pairs = list(tree.query_pairs(np.max(radii) * 2 + isolation_px * 2))
 
         # Use multiprocessing for pair checks
-        with Pool(processes=12) as pool:     # I am using 12 processes, you can adjust this based on your CPU cores using cpu_count() instead
-            results = pool.starmap(
-                process_pair,
-                [
-                    (pair, contours, centers, radii, nm_per_pixel, isolation_px, contour_min_distance)
-                    for pair in pairs
+        # I am using 12 processes, you can adjust this based on your CPU cores using cpu_count() instead
+        results = self.pool.starmap(
+            process_pair,
+            [
+                (pair, contours, centers, radii, nm_per_pixel, isolation_px, contour_min_distance)
+                for pair in pairs
                 ]
             )
 
@@ -606,15 +638,12 @@ class FeaturesAnalysis():
 
 
     def compute_all_areas(self,contours, nm2_per_pixel2):
-        from multiprocessing import Pool, cpu_count
 
-        with Pool(processes=12) as pool:
-            areas = pool.starmap(compute_area, [(cnt, nm2_per_pixel2) for cnt in contours])
+        areas = self.pool.starmap(compute_area, [(cnt, nm2_per_pixel2) for cnt in contours])
         return areas
 
 
     def compute_all_shape_metrics(self, valid_contours, nm_per_pixel):
-        from multiprocessing import Pool, cpu_count
         args = [
             (cnt, nm_per_pixel,
             measure_circularity,
@@ -623,8 +652,8 @@ class FeaturesAnalysis():
             measure_aspect_ratio)
             for cnt in valid_contours
         ]
-        with Pool(processes=12) as pool:
-            results = pool.map(compute_shape_metrics, args)
+
+        results = self.pool.map(compute_shape_metrics, args)
 
         # Extract each metric
         circularity = [r['circularity'] for r in results]
@@ -633,46 +662,29 @@ class FeaturesAnalysis():
         aspect_ratio = [r['aspect_ratio'] for r in results]
         return circularity, roundness, feret_diameter, aspect_ratio
     
-    # def calculate_isolation(self, contours, nm_per_pixel, isolation_distance):
-    #     """Optimized isolation check with spatial partitioning"""
-    #     from scipy.spatial import KDTree
 
-    #     n = len(contours)
-    #     isolation_mask = np.ones(n, dtype=bool)
+    def get_histogram_peaks_info(self, image):
+        from scipy.signal import find_peaks
+        """
+        Get histogram peaks and their properties from the image.
+        Returns:
+            peaks: List of peak values.
+            properties: Dictionary with peak properties like height, width, etc.
+        """
+        hist, bin_edges = np.histogram(image.flatten(), bins=256, range=(0, 255))
+        peaks, _ = find_peaks(hist)
         
-    #     if n < 2:
-    #         return isolation_mask
+        # Calculate properties for each peak
+        properties = {
+            'peak_values': hist[peaks],
+            'peak_indices': peaks,
+            'bin_edges': bin_edges[peaks]
+        }
         
-    #     isolation_px = max(isolation_distance / nm_per_pixel, 0.1)
-        
-    #     # Create spatial index using bounding circles
-    #     circles = [cv2.minEnclosingCircle(c) for c in contours]
-    #     centers = np.array([(x, y) for (x, y), _ in circles])
-    #     radii = np.array([r for _, r in circles])
-        
-    #     # Find potential neighbors using spatial partitioning
-    #     tree = KDTree(centers)
-    #     pairs = tree.query_pairs(np.max(radii) * 2 + isolation_px * 2)
-        
-    #     # Check only potentially close pairs
-    #     for i, j in pairs:
-    #         contour_i_area = cv2.contourArea(contours[i]) * nm_per_pixel**2
-    #         contour_j_area = cv2.contourArea(contours[j]) * nm_per_pixel**2
-    #         if contour_i_area <0.025 or contour_j_area < 0.025:
-    #             continue
-    #         if (np.linalg.norm(centers[i] - centers[j]) - (radii[i] + radii[j])) > isolation_px:
-    #             continue
-            
-    #         dist = self.contour_min_distance(contours[i], contours[j])
-    #         if dist <= isolation_px:
-    #             isolation_mask[i] = False
-    #             isolation_mask[j] = False
-        
-    #     return isolation_mask
+        return peaks, properties
 
 
-
-    def analyse_features(self, threshold, threshold_sa, gamma, clahe_clip, clahe_tile, gaussian_sigma, contrast, min_clean_cont_area, min_cluster_area,
+    def analyse_features(self, threshold1, threshold2, threshold_sa1, threshold_sa2, gamma, clahe_clip, clahe_tile, gaussian_sigma, contrast, min_clean_cont_area, min_cluster_area,
             max_cluster_area, max_clean_cont_area, double_gaussian_sigma1, double_gaussian_sigma2, double_gaussian_weight, 
             iteration_opening, iteration_closing, iteration_dilation, iteration_erosion, iteration_gradient, min_circularity, isolation_distance,
             iteration_boundary, opening2, closing2, dilation2, erosion2, gradient2, boundary2, sa_cluster_definer,
@@ -690,6 +702,8 @@ class FeaturesAnalysis():
         original_image = self.stack.raw_data[slice_number]
         nm_per_pixel, nm2_per_pixel2 = self.fft_calibration.get_calibrated_image(original_image, slice_number)
 
+        pixel_time_us = self.metadata.get_specific_metadata("pixel_time_us", required_keys = ['scan_device_properties'])[slice_number]
+        print(f"Pixel time in microseconds: {pixel_time_us}")
         # Preprocess the image by applying a smoothing to prepare for thresholding
         img = cv2.normalize(original_image, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
 
@@ -714,7 +728,8 @@ class FeaturesAnalysis():
         
         # Improve visualization of the image, the filtered image won't be used for analysis rather the original image will be used. This is just to see what we are analyzing
         image = self.apply_filters(img, gamma, clahe_clip, clahe_tile, contrast, brightness, sigmoid_alpha, sigmoid_beta)
-
+        peaks, properties = self.get_histogram_peaks_info(img)
+        # print(f"Histogram peaks: {peaks}, Properties: {properties}")
         # Determine analysis type from dropdown
         analysis_type = self.analysis_type_dropdown.value
         clean_graphene_analysis = (analysis_type == 'Clean_area_analysis')
@@ -727,9 +742,11 @@ class FeaturesAnalysis():
 
         # Thresholding and morphology
         thresh_type = cv2.THRESH_BINARY_INV if clean_graphene_analysis else cv2.THRESH_BINARY
-        thresh_value, thresh = cv2.threshold(img, threshold, 255, thresh_type)
-        percentile_threshold = np.sum(img<=thresh_value) / img.size * 100
-        print(f"1st threshold value: {thresh_value}, Percentile: {percentile_threshold:.2f}%")
+        # thresh_value, thresh = cv2.threshold(img, threshold, 255, thresh_type)
+        thresh = cv2.inRange(img, threshold1, threshold2) if clean_graphene_analysis else ~cv2.inRange(img, threshold1, threshold2)
+        thresh = thresh.astype(np.uint8)
+        percentile_threshold1 = np.sum(img<=threshold1) / img.size * 100
+        print(f"1st threshold value: {threshold1}, Percentile: {percentile_threshold1:.2f}%")
         thresh = self.apply_morphological_operations(thresh, iteration_opening, iteration_closing, iteration_dilation,
                                                     iteration_erosion, iteration_gradient, iteration_boundary, kernel)
 
@@ -747,14 +764,20 @@ class FeaturesAnalysis():
 
         masked_clean_image = cv2.bitwise_and(img, img, mask=contour_mask)
 
+        # if clusters_sa_analysis:
+        #     thresh_value2, thresh_sa = cv2.threshold(masked_clean_image, threshold_sa, 255, cv2.THRESH_BINARY)
+        # elif defects_analysis:
+        #     thresh_value2, thresh_sa = cv2.threshold(masked_clean_image, threshold_sa, 255, cv2.THRESH_BINARY_INV)
+        # else:
+        #     pass
         if clusters_sa_analysis:
-            thresh_value2, thresh_sa = cv2.threshold(masked_clean_image, threshold_sa, 255, cv2.THRESH_BINARY)
+            thresh_sa = cv2.inRange(masked_clean_image, threshold_sa1, threshold_sa2)
         elif defects_analysis:
-            thresh_value2, thresh_sa = cv2.threshold(masked_clean_image, threshold_sa, 255, cv2.THRESH_BINARY_INV)
+            thresh_sa = ~cv2.inRange(masked_clean_image, threshold_sa1, threshold_sa2)
         else:
-            pass
-        percentile_threshold_sa = np.sum(masked_clean_image<=thresh_value2) / masked_clean_image.size * 100
-        print(f"2nd threshold value: {thresh_value2}, Percentile: {percentile_threshold_sa:.2f}%")
+            thresh_sa = np.zeros_like(masked_clean_image, dtype=np.uint8)
+        percentile_threshold_sa = np.sum(masked_clean_image<=threshold_sa1) / masked_clean_image.size * 100
+        print(f"2nd threshold value: {threshold_sa1}, Percentile: {percentile_threshold_sa:.2f}%")
         thresh_sa = self.apply_morphological_operations2(thresh_sa, opening2, closing2, dilation2, erosion2, gradient2, boundary2, kernel)
 
 
@@ -833,10 +856,20 @@ class FeaturesAnalysis():
             density_atoms_in_contamination = number_of_atoms / total_contamination_area_nm2 if total_contamination_area_nm2 > 0 else float('nan')
             density_clusters_in_contamination = number_of_clusters / total_contamination_area_nm2   if total_contamination_area_nm2 > 0 else float('nan')
 
-        results = {
-                        'clean_graphene': {},
-                        'contamination': {},
-                        'clusters_and_single_atoms': {}
+
+        histogram_peaks = {
+            'peaks': peaks.tolist(),
+            'properties': {
+                'peak_values': properties['peak_values'].tolist(),
+                'peak_indices': properties['peak_indices'].tolist(),
+                'bin_edges': properties['bin_edges'].tolist()
+            }
+        }
+
+        results = {  'histogram_peaks': histogram_peaks,
+                     'clean_graphene': {},
+                     'contamination': {},
+                     'clusters_and_single_atoms': {}
                     }
 
         if clean_graphene_analysis:
@@ -980,7 +1013,7 @@ class FeaturesAnalysis():
 
             # Create or reuse figure
             if not hasattr(self, 'fig') or not plt.fignum_exists(self.fig.number):
-                self.fig, self.axs = plt.subplots(2, 4, figsize=(16, 8))
+                self.fig, self.axs = plt.subplots(2, 4, figsize=(20, 10))
                 self.fig.show()
             else:
                 # Clear previous content
@@ -1002,10 +1035,12 @@ class FeaturesAnalysis():
             self.axs[0,3].set_xlabel('Clean Area (nm²)')
             self.axs[0,3].set_ylabel('Count')
             self.axs[0,3].set_title('Clean Area Distribution')
-            self.axs[0,3].grid(True)
+            self.axs[0,3].grid(True)    
             self.axs[0,3].set_xlim(0, 25)  
             self.axs[0,3].set_ylim(0, 40)  
-            self.axs[0,3].axvline(x=thresh_value, color='red', linestyle='--', label=f'Percentile: {thresh_value:.2f}%')
+            self.axs[0,3].axvline(x=threshold1, color='red', linestyle='--', label=f'Percentile: {threshold1:.2f}%')
+            self.axs[0,3].axvline(x=threshold2, color='red', linestyle='--', label=f'Percentile: {threshold2:.2f}%')
+
             self.axs[0,3].axis('on')
             info_text = (
                 f"Number of {area_of_interest_label} found:   {len(clean_areas)}\n"
@@ -1034,7 +1069,8 @@ class FeaturesAnalysis():
             self.axs[1,3].grid(True)
             self.axs[1,3].set_xlim(0, 40)  
             self.axs[1,3].set_ylim(0, 30)  
-            self.axs[1,3].axvline(x=thresh_value2, color='red', linestyle='--', label=f'Percentile: {thresh_value2:.2f}%')
+            self.axs[1,3].axvline(x=threshold_sa1, color='red', linestyle='--', label=f'Percentile: {threshold_sa1:.2f}%')
+            self.axs[1,3].axvline(x=threshold_sa2, color='red', linestyle='--', label=f'Percentile: {threshold_sa2:.2f}%')
             self.axs[1,3].axis('on')
             info_text = (
                 f"Number of clusters found:  {len(cluster_areas)}\n")
@@ -1054,18 +1090,26 @@ class FeaturesAnalysis():
 
             self.fig.tight_layout()
             self.fig.canvas.draw()
-            fig_name = f"{self.image_name.value}.svg"
-
-            def save_fig():
-                self.fig.savefig(fig_name, format='svg', bbox_inches='tight', pad_inches=0)
-                return
-        self.save_for_figure_button.on_click(lambda b: save_fig())
 
         print("Final results:", results)
         self.results = pd.DataFrame(results)
         return results
 
 
+    def save_current_figure(self, b):
+        if not hasattr(self, 'fig') or not plt.fignum_exists(self.fig.number):
+            print("No figure to save")
+            return
+        fig_name = f"{self.image_name.value}.svg"
+        if not fig_name.endswith('.svg'):
+            fig_name += '.svg'
+        dirname, image_name = os.path.split(fig_name)
+        if dirname == '':
+            dirname = '.'
+        if dirname and not os.path.exists(dirname):
+            os.makedirs(dirname, exist_ok=True)
+        self.fig.savefig(fig_name, format='svg')
+        print(f"Figure saved as {fig_name}")
 
     def save_new_data_to_existing_df(self, _):
         """Saves/updates ONLY Calibrated_FOV and Entire_Area_nm2 in CSV
@@ -1142,6 +1186,8 @@ class FeaturesAnalysis():
         # 2. Prepare data storage with default values
         new_data = {
             "Slice": slice_number,
+            "Histogram_Peaks": {},
+            "Number_of_Layers": self.number_of_layers_text.value,
             "Clean_Area_nm2": np.nan,
             "Contamination_Area_nm2": np.nan,
             "Number_of_Clusters": np.nan,
@@ -1163,8 +1209,10 @@ class FeaturesAnalysis():
         try:
             # Collect parameters for analysis
             params = {
-                "threshold": self.threshold_slider.value,
-                "threshold_sa": self.threshold_sa_slider.value,
+                "threshold1": self.threshold_slider1.value,
+                "threshold2": self.threshold_slider2.value,
+                "threshold_sa1": self.threshold_sa_slider1.value,
+                "threshold_sa2": self.threshold_sa_slider2.value,
                 "gamma": self.gamma_slider.value,
                 "clahe_clip": self.clahe_clip_slider.value,
                 "clahe_tile": self.clahe_tile_slider.value,
@@ -1209,7 +1257,10 @@ class FeaturesAnalysis():
             
             # Run analysis
             results = self.analyse_features(**params)
-            
+            if 'histogram_peaks' in results:
+                new_data['Histogram_Peaks'] = json.dumps(results['histogram_peaks'])
+            else:
+                print("Warning: No histogram peaks found in results")
             # Determine analysis type
             analysis_type = self.analysis_type_dropdown.value
             clean_graphene_analysis = (analysis_type == 'Clean_area_analysis')
@@ -1285,8 +1336,10 @@ class FeaturesAnalysis():
                 ("Resize_Factor", self.resize_factor_slider),
                 ("Resize_Method", self.resize_method_dropdown),
                 ("Kernel_Size", self.kernel_size_slider),
-                ("Threshold", self.threshold_slider),
-                ("Threshold_SA", self.threshold_sa_slider),
+                ("Threshold1", self.threshold_slider1),
+                ("Threshold2", self.threshold_slider2),
+                ("Threshold_SA1", self.threshold_sa_slider1),
+                ("Threshold_SA2", self.threshold_sa_slider2),
                 ("Gamma", self.gamma_slider),
                 ("CLAHE_Clip", self.clahe_clip_slider),
                 ("CLAHE_Tile", self.clahe_tile_slider),
@@ -1410,7 +1463,9 @@ class FeaturesAnalysis():
     
     def _interactive_image_analysis(self):
         return  interactive_output(self.analyse_features, {'slice_number': self.slice_slider, 'kernel': self.kernel_size_slider,
-                                                            'threshold': self.threshold_slider, 'threshold_sa': self.threshold_sa_slider,
+                                                            'threshold1': self.threshold_slider1, 'threshold2': self.threshold_slider2,
+                                                            'threshold_sa1': self.threshold_sa_slider1,
+                                                            'threshold_sa2': self.threshold_sa_slider2,
                                                             'gamma': self.gamma_slider, 'clahe_clip': self.clahe_clip_slider, 'clahe_tile': self.clahe_tile_slider,
                                                             'gaussian_sigma': self.gaussian_sigma_slider, 'contrast': self.contrast_slider,
                                                             'min_clean_cont_area': self.min_clean_cont_area_slider, 'max_clean_cont_area': self.max_clean_cont_area_slider, 

@@ -162,7 +162,6 @@ def apply_gaussian_blur(image, kernel_size, sigma=0):
 
 
 
-
 # Modified morphological operations to use dynamic kernel size
 def dilate( image, iterations, kernel_size):
     kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8)

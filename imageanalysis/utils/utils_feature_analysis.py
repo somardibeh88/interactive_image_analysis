@@ -45,14 +45,15 @@ DEFAULTS = {
     "Kernel_Size": 3,}
 
 
-COLUMNS_ORDER = ['Slice', 'Analysis_Type', 'Feature_Analysis_Type', 'Contour_retrieval_modes', 'Contour_approximation_methods',
-                 'Threshold', 'Threshold_SA', 'Resize_Factor', 'Resize_Method','Clean_Area_nm2', 'Contamination_Area_nm2', 
+COLUMNS_ORDER = ['Slice',  'Analysis_Type', 'Number_of_Layers','Feature_Analysis_Type', 'Contour_retrieval_modes', 'Contour_approximation_methods',
+                 'Threshold1', 'Threshold2', 'Threshold_SA1','Threshold_SA2', 'Resize_Factor', 'Resize_Method','Clean_Area_nm2', 'Contamination_Area_nm2', 
                  'Number_of_Clusters', 'Total_Cluster_Area_nm2', 'Clusters_Density', 'Clusters', 'Num_Atoms', 
                  'Atoms_Area', 'Atoms_Density', 'Atoms', 'Calibrated_FOV', 'Entire_Area_nm2', 
                  'Circularities', 'Roundness', 'Feret_Diameter', 'Aspect_Ratio', 
                  'Min_Clean_Cont_Area_nm2', 'Max_Clean_Cont_Area_nm2', 'Min_Cluster_Area_nm2', 'Max_Cluster_Area_nm2',
                  'Circularity', 'Isolation Distance','Make Circular threshold', 'SA_Cluster_Definer', 'Percentile Contrast',
                  'Kernel_Size', 'Gaussian_Sigma','Double_Gaussian_Sigma1', 'Double_Gaussian_Sigma2', 'Double_Gaussian_Weight',
+                 "Histogram_Peaks",
                  'Dilation', 'Erosion', 'Opening', 'Closing', 'Gradient', 'Boundary', 
                  'Opening2','Closing2', 'Dilation2', 'Erosion2', 'Gradient2', 'Boundary2',
                  'Brightness', 'Gamma', 'CLAHE_Clip','CLAHE_Tile',
@@ -71,9 +72,9 @@ def contour_min_distance(cnt1, cnt2):
         if length <= 20:    # Check all points for small contours
             return 1
         elif length <= 50:  # Check every 3rd point
-            return 3
+            return 4
         else:               # Check every 5th point for large contours
-            return 5
+            return 8
     
     # Check points from cnt1 to cnt2 with adaptive sampling
     step1 = get_step(cnt1)
@@ -103,11 +104,12 @@ def process_pair( pair, contours, centers, radii, nm_per_pixel, isolation_px, mi
 
     area_i = cv2.contourArea(contours[i]) * nm_per_pixel**2
     area_j = cv2.contourArea(contours[j]) * nm_per_pixel**2
-    if area_i < 0.025 or area_j < 0.025:
+    if area_i < 0.025 or area_j < 0.025:    # exclude very small contours
         return None
 
     center_dist = np.linalg.norm(centers[i] - centers[j])
-    if (center_dist - (radii[i] + radii[j])) > isolation_px:
+    # exclude contours which are too far from each others by checking the distance between their centers compared to the radii of the minimum enclosing circles around them
+    if (center_dist - (radii[i] + radii[j])) > isolation_px:   
         return None
 
     dist = min_dist_func(contours[i], contours[j])
