@@ -8,7 +8,7 @@ Modified by: [Somar Dibeh]
 
 import numpy as np
 from scipy import ndimage
-from .simulate import superpose_deltas
+# from .simulate import superpose_deltas
 
 from numba import njit
 @njit(cache=True)
