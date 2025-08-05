@@ -8,6 +8,7 @@ imageanalysis/utils.py
 imageanalysis.egg-info/
 imageanalysis/Sample_2476/
 imageanalysis/testing.ipynb
+imageanalysis/__pycache__/
 **/*.h5
 **/*.hdf5
 **/*.pkl
