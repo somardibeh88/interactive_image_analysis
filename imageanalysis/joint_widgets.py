@@ -139,38 +139,38 @@ def create_widgets():
     max_clean_cont_area_slider = FloatSlider(min=0, max=4200000, value=10000, step=5, description='Max Clean_Cont Area', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
     min_cluster_area_slider = FloatSlider(min=0, max=200, value=0.1, step=0.001, description='Min Clust_sa Area', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, readout_format='.3f', continuous_update=False)
     max_cluster_area_slider = FloatSlider(min=0, max=2000, value=1, step=0.005, description='Max Cluster_sa Area', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, readout_format='.3f', continuous_update=False)
-    min_circularity_slider = FloatSlider(min=0, max=1, value=0.05, step=0.01, description='Min Circularity', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, readout_format='.3f', continuous_update=False)
-    min_isolation_slider = FloatSlider(min=0.002, max=100, value=0.2, step=0.004, description='Min Isolation', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, readout_format='.3f', continuous_update=False)
-    single_atom_clusters_definer_slider = FloatSlider(min=0, max=2, value=0.5, step=0.005, description='SA Cluster definer', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, readout_format='.3f', continuous_update=False)
+    min_circularity_slider = FloatSlider(min=0, max=1, value=0.0, step=0.01, description='Min Circularity', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, readout_format='.3f', continuous_update=False)
+    min_isolation_slider = FloatSlider(min=0.002, max=100, value=0.1, step=0.004, description='Min Isolation', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, readout_format='.3f', continuous_update=False)
+    single_atom_clusters_definer_slider = FloatSlider(min=0, max=2, value=0.03, step=0.005, description='SA Cluster definer', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, readout_format='.3f', continuous_update=False)
     make_circular_thresh_slider = FloatSlider(min=0, max=2, value=0.03, step=0.005, description='Make circular thresh', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})                
     make_circular_thresh_checkbox = Checkbox(value=False, description='Make circular thresh')
 
     number_of_layers_text = IntText(value=1, description='Number of layers:', style={'description_width': '140px'}, layout={'width': '95%'})
     number_of_layers_button = Button(description="Set Number of Layers", tooltip="Set the number of layers for the analysis", layout={'width': '220px'})
     #############################  Morphological operations widgets #######################################
-    opening_slider = IntSlider(min=0, max=10, value=0, description='Opening Iterations',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
-    closing_slider = IntSlider(min=0, max=10, value=0, description='Closing Iterations',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
-    dilation_slider = IntSlider(min=0, max=10, value=0, description='Dilation Iterations',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
-    erosion_slider = IntSlider(min=0, max=10, value=0, description='Erosion Iterations', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
-    gradient_slider = IntSlider(min=0, max=10, value=0, description='Gradient Iterations',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
-    boundary_slider = IntSlider(min=0, max=10, value=0, description='Boundary Iterations', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
-    black_hat_slider = IntSlider(min=0, max=10, value=0, description='Black Hat Iterations',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
-    top_hat_slider = IntSlider(min=0, max=10, value=0, description='Top Hat Iterations', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
-    opening2_slider = IntSlider(min=0, max=10, value=0, description='Opening Iterations 2',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
-    closing2_slider = IntSlider(min=0, max=10, value=0, description='Closing Iterations 2',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
-    dilation2_slider = IntSlider(min=0, max=10, value=0, description='Dilation Iterations 2',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
-    erosion2_slider = IntSlider(min=0, max=10, value=0, description='Erosion Iterations 2', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
-    gradient2_slider = IntSlider(min=0, max=10, value=0, description='Gradient Iterations 2',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
-    boundary2_slider = IntSlider(min=0, max=10, value=0, description='Boundary Iterations 2', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'})
+    opening_slider = IntSlider(min=0, max=10, value=0, description='Opening Iterations',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
+    closing_slider = IntSlider(min=0, max=10, value=0, description='Closing Iterations',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
+    dilation_slider = IntSlider(min=0, max=10, value=0, description='Dilation Iterations',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
+    erosion_slider = IntSlider(min=0, max=10, value=0, description='Erosion Iterations', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
+    gradient_slider = IntSlider(min=0, max=10, value=0, description='Gradient Iterations',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
+    boundary_slider = IntSlider(min=0, max=10, value=0, description='Boundary Iterations', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
+    black_hat_slider = IntSlider(min=0, max=10, value=0, description='Black Hat Iterations',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
+    top_hat_slider = IntSlider(min=0, max=10, value=0, description='Top Hat Iterations', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
+    opening2_slider = IntSlider(min=0, max=10, value=0, description='Opening Iterations 2',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
+    closing2_slider = IntSlider(min=0, max=10, value=0, description='Closing Iterations 2',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
+    dilation2_slider = IntSlider(min=0, max=10, value=0, description='Dilation Iterations 2',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
+    erosion2_slider = IntSlider(min=0, max=10, value=0, description='Erosion Iterations 2', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
+    gradient2_slider = IntSlider(min=0, max=10, value=0, description='Gradient Iterations 2',style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
+    boundary2_slider = IntSlider(min=0, max=10, value=0, description='Boundary Iterations 2', style={'description_width': '160px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
 
 
     ################################## FFT Calibration Sliders #########################################
-    min_sampling_slider = FloatSlider(min=0.005, max=2.0, value=0.05, step=0.005, description='Min Samp (nm⁻¹)', style={'description_width': '120px'}, layout={'width': '95%'})
-    max_sampling_slider = FloatSlider(min=0.01, max=2.0, value=0.8, step=0.01, description='Max Samp (nm⁻¹)', style={'description_width': '120px'}, layout={'width': '95%'})
-    n_widget_slider = IntSlider(min=1, max=1600, value=200, step=1, description='N Points', style={'description_width': '90px'}, layout={'width': '95%'})
-    fft_spots_rotation_slider = FloatSlider(min=0, max=360, value=0, step=1, description='Rotation (°)',  style={'description_width': '100px'},  layout={'width': '95%'})
-    rolloff_slider = FloatSlider(min=0.05, max=2, value=0.33, step=0.05,  description='Rolloff', style={'description_width': '80px'}, layout={'width': '95%'})
-    cuttoff_slider = FloatSlider(min=0.05, max=2, value=0.5, step=0.05, description='Cutoff', style={'description_width': '80px'}, layout={'width': '95%'})
+    min_sampling_slider = FloatSlider(min=0.005, max=2.0, value=0.05, step=0.005, description='Min Samp (nm⁻¹)', style={'description_width': '120px'}, layout={'width': '95%'}, continuous_update=False)
+    max_sampling_slider = FloatSlider(min=0.01, max=2.0, value=0.8, step=0.01, description='Max Samp (nm⁻¹)', style={'description_width': '120px'}, layout={'width': '95%'}, continuous_update=False)
+    n_widget_slider = IntSlider(min=1, max=1600, value=200, step=1, description='N Points', style={'description_width': '90px'}, layout={'width': '95%'}, continuous_update=False)
+    fft_spots_rotation_slider = FloatSlider(min=0, max=360, value=0, step=1, description='Rotation (°)',  style={'description_width': '100px'},  layout={'width': '95%'}, continuous_update=False)
+    rolloff_slider = FloatSlider(min=0.05, max=2, value=0.33, step=0.05,  description='Rolloff', style={'description_width': '80px'}, layout={'width': '95%'}, continuous_update=False)
+    cuttoff_slider = FloatSlider(min=0.05, max=2, value=0.5, step=0.05, description='Cutoff', style={'description_width': '80px'}, layout={'width': '95%'}, continuous_update=False)
 
 
     ################################     Checkboxes #########################################
@@ -204,6 +204,14 @@ def create_widgets():
     make_circular_thresh_checkbox = Checkbox(value=False, description='Make circular thresh')
     threshold_checkbox = Checkbox(value=False, description='1st Threshold', layout={'width': '95%'})
     threshold_sa_checkbox = Checkbox(value=False, description='2nd Threshold SA', layout={'width': '95%'})
+
+    # Choose thresholding method
+    thresh_method_dropdown = Dropdown(options=['Manual', 'K-means'], value='Manual', description='Thresholding Method')
+    # K-means Thresholding widget
+    kmeans_clusters_number = IntSlider(value=3, min=2, max=10, description='KM Clusters', continuous_update=False)
+    kmeans_attempts = IntSlider(value=60, min=1, max=100, description='KM Attempts', continuous_update=False)
+    kmeans_epsilon = FloatSlider(value=1.0, min=0.01, max=2.0, step=0.01, description='KM Epsilon', continuous_update=False)
+    kmeans_init = Dropdown(options=['K-means++', 'Random'], value='K-means++', description='K-means Initialization')
 
     ########################### Filters Checkboxes ###################################
     contrast_checkbox = Checkbox(value=False, description='Contrast Enhancement')

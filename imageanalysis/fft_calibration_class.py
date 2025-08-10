@@ -241,7 +241,6 @@ class FFTCalibration():
         #     pass
 
 
-
     def toggle_calibration_controls(self, change):
         checkbox_slider_map = {
             self.calibration_checkbox_fft_calib: [self.calibration_controls],
@@ -263,7 +262,6 @@ class FFTCalibration():
                 break
 
 
-
     def update_fft_order(self, change):
         fft_order = self.fft_order_dropdown.value
 
@@ -279,7 +277,6 @@ class FFTCalibration():
         """Handles colormap changes without triggering a full update."""
         self.update(colormap=self.colormap_dropdown_fft_calib.value)
 
-        
 
     def handle_calibration_checkbox(self, change):
         """Handles the main calibration checkbox state"""
@@ -368,7 +365,6 @@ class FFTCalibration():
             print('No metadata available for this reference image. Please use another image for the FFT calibration.')
         return self.ref_fov
     
-
 
 
     def get_calibrated_image(self, image, slice_number):

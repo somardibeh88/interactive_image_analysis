@@ -28,7 +28,6 @@ from scipy.sparse.csgraph import connected_components
 import imageanalysis.fft_calibration_class as fc
 from imageanalysis.fft_calibration_class import *
 from joint_widgets import create_widgets
-from imageanalysis.calibrated_images_class import CalibratedImages
 from multiprocessing import Pool, cpu_count
 
 cv2.ocl.setUseOpenCL(False)
@@ -1091,7 +1090,8 @@ class FeaturesAnalysis():
             self.fig.tight_layout()
             self.fig.canvas.draw()
 
-        print("Final results:", results)
+        if clean_graphene_analysis or contamination_analysis:
+            print(f"Final {results_key} shape metrics: {results[results_key]['shape_metrics']}")
         self.results = pd.DataFrame(results)
         return results
 

@@ -7,7 +7,7 @@ import os
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
-from imageanalysis.calibrated_images_class import CalibratedImages  
+from imageanalysis.image_processing import CalibratedImages  
 from imageanalysis.fft_calibration_class import FFTCalibration
 from data_loader import DataLoader
 import matplotlib.pyplot as plt
@@ -21,7 +21,7 @@ from ipywidgets import (
 from matplotlib.animation import FuncAnimation
 from IPython.display import display, clear_output
 from joint_widgets import create_widgets
-from imageanalysis.calibrated_images_class import CalibratedImages
+from imageanalysis.image_processing import CalibratedImages
 
 
 cv2.ocl.setUseOpenCL(False)

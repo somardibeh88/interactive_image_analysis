@@ -2,7 +2,7 @@
 import os
 from IPython.display import display
 from ipywidgets import Button, FileUpload, Output, VBox
-from imageanalysis.calibrated_images_class import CalibratedImages
+from imageanalysis.image_processing import CalibratedImages
 import os
 from traitlets.config import Config
 

@@ -9,6 +9,7 @@ imageanalysis.egg-info/
 imageanalysis/Sample_2476/
 imageanalysis/testing.ipynb
 imageanalysis/__pycache__/
+myenv_backup.yml
 **/*.h5
 **/*.hdf5
 **/*.pkl
@@ -24,4 +25,5 @@ imageanalysis/__pycache__/
 **/*.svg
 **/*.tiff   
 **/*.tif
-myenv_backup.yml
+**/*.ndata
+**/*.ndata1

@@ -40,13 +40,20 @@ DEFAULTS = {
     "Contour_Approximation_Method": "CHAIN_APPROX_TC89_KCOS",
     "Analysis_Type": "Clean_area_analysis",
     "Feature_Analysis_Type": "Single_atom_clusters_analysis",
-    "Resize_Factor": 1.0,
-    "Resize_Method": "Bicubic",
-    "Kernel_Size": 3,}
+    # "Resize_Factor": 1.0,
+    # "Resize_Method": "Bicubic",
+    "Kernel_Size": 3,
+    "Kmeans_Clusters_Number": 6,
+    "Kmeans_Attempts_Number": 40,
+    "Kmeans_Epsilon": 0.05
+}
 
 
 COLUMNS_ORDER = ['Slice',  'Analysis_Type', 'Number_of_Layers','Feature_Analysis_Type', 'Contour_retrieval_modes', 'Contour_approximation_methods',
-                 'Threshold1', 'Threshold2', 'Threshold_SA1','Threshold_SA2', 'Resize_Factor', 'Resize_Method','Clean_Area_nm2', 'Contamination_Area_nm2', 
+                 'Threshold1', 'Threshold2', 'Threshold_SA1','Threshold_SA2', 
+                 'Thresholds_List_Kmeans','Kmeans_Clusters_Number', 'Kmeans_Attempts_Number', 'Kmeans_Epsilon', 
+                #  'Resize_Factor', 'Resize_Method',
+                 'Clean_Area_nm2', 'Contamination_Area_nm2', 
                  'Number_of_Clusters', 'Total_Cluster_Area_nm2', 'Clusters_Density', 'Clusters', 'Num_Atoms', 
                  'Atoms_Area', 'Atoms_Density', 'Atoms', 'Calibrated_FOV', 'Entire_Area_nm2', 
                  'Circularities', 'Roundness', 'Feret_Diameter', 'Aspect_Ratio', 
