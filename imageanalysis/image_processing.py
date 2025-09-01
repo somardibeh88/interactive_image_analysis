@@ -230,7 +230,7 @@ class CalibratedImages():
         widget_width = "300px"
         
         # Configure widgets with proper sizing
-        self.image_name.layout = Layout(width=widget_width)
+        self.image_name.layout = Layout(width="600px")
         self.image_format_dropdown.layout = Layout(width=widget_width)
         self.scalebar_length_text.layout = Layout(width=slider_width)
         self.dpi_slider.layout = Layout(width=slider_width)
@@ -265,10 +265,10 @@ class CalibratedImages():
         ], layout=Layout(align_items='center', margin='0 0 15px 0'))
         
         # Style buttons
-        self.save_image_button.layout = Layout(width='45%', margin='0 5px 0 0')
-        self.save_for_figure_button.layout = Layout(width='45%', margin='0 0 0 5px')
+        # self.save_image_button.layout = Layout(width='45%', margin='0 5px 0 0')
+        self.save_for_figure_button.layout = Layout(width='45%', margin='0 5px 0 0 ')
         button_row = HBox([
-            self.save_image_button,
+            # self.save_image_button,
             self.save_for_figure_button
         ], layout=Layout(justify_content='space-between', width='100%'))
         
@@ -567,7 +567,7 @@ class CalibratedImages():
             scale_bar_pixels = int(scalebar_length / nm_per_pixel)
 
         if scale_bar_length_nm > 10:
-            scale_bar_length_nm = round(scale_bar_length_nm / 5) * 5
+            scale_bar_length_nm = round(scale_bar_length_nm / 4) * 4
         elif 10>=scale_bar_length_nm >= 1.5:
             scale_bar_length_nm = round(scale_bar_length_nm/2) * 2
         elif 0.5 < scale_bar_length_nm < 1.5:

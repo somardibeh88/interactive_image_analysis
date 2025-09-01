@@ -7,7 +7,10 @@ imageanalysis/making_h5_stacks.ipynb
 imageanalysis/utils.py
 imageanalysis.egg-info/
 imageanalysis/Sample_2476/
+imageanalysis/Sample_2525/
 imageanalysis/testing.ipynb
+imageanalysis/getting_rotation_angle_4dstem.ipynb
+imageanalysis/vcr_to_gif_calibrated.py
 imageanalysis/__pycache__/
 myenv_backup.yml
 **/*.h5

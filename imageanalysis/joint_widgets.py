@@ -26,6 +26,7 @@ contour_approximation_methods = { 'CHAIN_APPROX_NONE': cv2.CHAIN_APPROX_NONE,
                                     'CHAIN_APPROX_TC89_KCOS': cv2.CHAIN_APPROX_TC89_KCOS}
 
 
+
 fft_orders = ['1st-order', '2nd-order']
 
 analysis_type = ['Clean_area_analysis', 'Contaminated_area_analysis']
@@ -45,6 +46,8 @@ def create_widgets():
                                         'CHAIN_APPROX_SIMPLE': cv2.CHAIN_APPROX_SIMPLE,
                                         'CHAIN_APPROX_TC89_L1': cv2.CHAIN_APPROX_TC89_L1,
                                         'CHAIN_APPROX_TC89_KCOS': cv2.CHAIN_APPROX_TC89_KCOS}
+
+    kmeans_initialization_methods = {'K-means++': cv2.KMEANS_PP_CENTERS, 'Random': cv2.KMEANS_RANDOM_CENTERS}
     ###################### Dropdowns ######################
     colormap_dropdown = Dropdown(
         options=[ 'gray', 'viridis', 'plasma', 'inferno', 'magma', 'cividis',
@@ -83,7 +86,7 @@ def create_widgets():
     feature_analysis_type_dropdown = Dropdown(options=feature_analysis_type, value='Single_atom_clusters_analysis', description='Feature Analysis Type:', style={'description_width': '260px'}, layout={'width': '500px'})
 
 
-    image_name = Text(value='image', description='Name:', style={'description_width': '140px'}, layout={'width': '95%'})
+    image_name = Text(value='image', description='Name:', style={'description_width': '160px'}, layout={'width': '95%'})
     save_image_button = Button(description="Save Image", tooltip="Save image with scalebar", layout={'width': '220px'})
     save_for_figure_button = Button(description="Save Figure", tooltip="Save image with scalebar", layout={'width': '160px'})
     save_button = Button(description="Save", tooltip="Save the data point to a CSV file. A new file will be created if one does not exist", layout={'width': '220px'})
@@ -96,8 +99,8 @@ def create_widgets():
 
     ##################### Filters widget tools #####################
     kernel_size_slider = IntSlider(min=1, max=15, value=3, step=2, description='Kernel Size', style={'description_width': '120px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
-    double_gaussian_slider1 = FloatSlider(min=0.05, max=2.0, value=0.5, step=0.01, description='σ₁', style={'description_width': '60px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
-    double_gaussian_slider2 = FloatSlider(min=0.05, max=2.0, value=0.2, step=0.01, description='σ₂', style={'description_width': '60px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
+    double_gaussian_slider1 = FloatSlider(min=0.01, max=2.0, value=0.5, step=0.01, description='σ₁', style={'description_width': '60px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
+    double_gaussian_slider2 = FloatSlider(min=0.01, max=2.0, value=0.2, step=0.01, description='σ₂', style={'description_width': '60px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
     double_gaussian_weight_slider = FloatSlider(min=0.1, max=1.0, value=0.5, step=0.01, description='Weight', style={'description_width': '90px'}, layout={'display': 'none', 'width': '95%'}, continuous_update=False)
     gaussian_sigma_slider = FloatSlider(min=0.02, max=8.0, value=1.0, step=0.02, description='Gaussian σ', style={'description_width': '120px'}, layout={'display': 'none', 'width': '95%'})
     gamma_slider = FloatSlider(min=0.02, max=5.0, value=1, step=0.01, description='Gamma', style={'description_width': '90px'}, layout={'display': 'none', 'width': '95%'},continuous_update=False)
@@ -168,7 +171,7 @@ def create_widgets():
     min_sampling_slider = FloatSlider(min=0.005, max=2.0, value=0.05, step=0.005, description='Min Samp (nm⁻¹)', style={'description_width': '120px'}, layout={'width': '95%'}, continuous_update=False)
     max_sampling_slider = FloatSlider(min=0.01, max=2.0, value=0.8, step=0.01, description='Max Samp (nm⁻¹)', style={'description_width': '120px'}, layout={'width': '95%'}, continuous_update=False)
     n_widget_slider = IntSlider(min=1, max=1600, value=200, step=1, description='N Points', style={'description_width': '90px'}, layout={'width': '95%'}, continuous_update=False)
-    fft_spots_rotation_slider = FloatSlider(min=0, max=360, value=0, step=1, description='Rotation (°)',  style={'description_width': '100px'},  layout={'width': '95%'}, continuous_update=False)
+    fft_spots_rotation_slider = FloatSlider(min=0, max=360, value=0, step=0.25, description='Rotation (°)',  style={'description_width': '100px'},  layout={'width': '95%'}, continuous_update=False)
     rolloff_slider = FloatSlider(min=0.05, max=2, value=0.33, step=0.05,  description='Rolloff', style={'description_width': '80px'}, layout={'width': '95%'}, continuous_update=False)
     cuttoff_slider = FloatSlider(min=0.05, max=2, value=0.5, step=0.05, description='Cutoff', style={'description_width': '80px'}, layout={'width': '95%'}, continuous_update=False)
 
@@ -211,7 +214,7 @@ def create_widgets():
     kmeans_clusters_number = IntSlider(value=3, min=2, max=10, description='KM Clusters', continuous_update=False)
     kmeans_attempts = IntSlider(value=60, min=1, max=100, description='KM Attempts', continuous_update=False)
     kmeans_epsilon = FloatSlider(value=1.0, min=0.01, max=2.0, step=0.01, description='KM Epsilon', continuous_update=False)
-    kmeans_init = Dropdown(options=['K-means++', 'Random'], value='K-means++', description='K-means Initialization')
+    kmeans_initial_dropdown = Dropdown(options=['K-means++', 'Random'], value='K-means++', description='K-means Initialization')
 
     ########################### Filters Checkboxes ###################################
     contrast_checkbox = Checkbox(value=False, description='Contrast Enhancement')
@@ -226,7 +229,9 @@ def create_widgets():
 
 
     ########################## Image Analysis Checkboxes ##########################
-    specific_region_checkbox = Checkbox(value=False, description='Save specific region', layout={'width': '95%'})
+    specific_region_checkbox = Checkbox(value=False, description='Select specific region', layout={'width': '95%'})    
+    display_specific_region_checkbox = Checkbox(value=False, description='Display specific region', layout={'width': '95%'})
+
     scalebar_length_checkbox = Checkbox(value=False, description='Custom scalebar', layout={'width': '95%'})
     dpi_checkbox = Checkbox(value=False, description='Custom DPI', layout={'width': '95%'})      
     resize_checkbox = Checkbox(value=False, description='Resize image', layout={'width': '95%'})

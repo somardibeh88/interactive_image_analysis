@@ -80,7 +80,7 @@ class FFTCalibration():
                                   layout={'width': '95%'})
 
         max_layers = 5
-        self.layer_angles = [FloatSlider(min=0,max=360,value=0,step=1,
+        self.layer_angles = [FloatSlider(min=0,max=360,value=0,step=0.25,
                                         description=f'L{i} Angle (°)',
                                         style={'description_width': '100px'},
                                         layout={'width': '95%', 'display': 'none'}) 
@@ -601,7 +601,7 @@ class FFTCalibration():
             fft_filename = os.path.join(dir_name, fft_img_fft)
 
 
-        fig_ref, ax_ref = plt.subplots(figsize=(6, 3), dpi=300)
+        fig_ref, ax_ref = plt.subplots(figsize=(8, 4), dpi=350)
         im = ax_ref.imshow(self.current_ref_image_fft, cmap=self.current_colormap)
         im.set_rasterized(True)
 
@@ -632,7 +632,7 @@ class FFTCalibration():
             plt.close(fig_ref)
 
             # Save FFT analysis
-            fig_fft, ax_fft = plt.subplots(figsize=(6, 3), dpi=300)
+            fig_fft, ax_fft = plt.subplots(figsize=(8, 4), dpi=350)
             im1 = ax_fft.imshow(self.current_ft_vis, cmap=self.current_colormap)
             im1.set_rasterized(True)
             ax_fft.plot(*self.current_spots.T, 'wo', mfc='none', 
@@ -678,7 +678,7 @@ class FFTCalibration():
                 info_text = (f"Number of layers: {self.calibration_type_dropdown_fft_calib.value[-2]}\n"
                     f"{txt_angle_mismatches}")
                 # Save the images with the same name
-                fig_ref, ax_ref = plt.subplots(figsize=(6, 3), dpi=300)
+                fig_ref, ax_ref = plt.subplots(figsize=(8, 4), dpi=350)
                 anchored_text = AnchoredText(info_text, loc='upper left',
                                 frameon=True, pad=0.5, borderpad=0.5)
                 anchored_text.txt._text.set_fontproperties(font_prop)
@@ -688,7 +688,7 @@ class FFTCalibration():
                 ax_ref.add_artist(anchored_text)
 
             else:
-                fig_ref, ax_ref = plt.subplots(figsize=(6, 3), dpi=300)
+                fig_ref, ax_ref = plt.subplots(figsize=(8, 4), dpi=350)
             im = ax_ref.imshow(self.current_ref_image_fft, cmap=self.current_colormap)
             im.set_rasterized(True)
             ax_ref.axis('off')
@@ -696,7 +696,7 @@ class FFTCalibration():
             plt.close(fig_ref)
 
             # Save FFT analysis
-            fig_fft, ax_fft = plt.subplots(figsize=(6, 3), dpi=300)
+            fig_fft, ax_fft = plt.subplots(figsize=(8, 4), dpi=350)
             ax_fft.imshow(self.current_ft_vis, cmap=self.current_colormap)
 
             if self.calibration_type_dropdown_fft_calib.value not in ['hexagonal', '2nd-order-hexagonal']:

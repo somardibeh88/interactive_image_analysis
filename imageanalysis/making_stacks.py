@@ -11,6 +11,7 @@ import re
 import json
 import h5py
 import joblib
+import dill
 from datetime import datetime
 from data_loader import DataLoader, EELSLazyLoader
 
@@ -168,9 +169,8 @@ def save_stack_images_pkl(directory, metadata=False):
             metadata_list.append(metadata)
     
     if images:  # Only save if there are images
-        joblib.dump(images, output_file_path)
-        joblib.dump(metadata_list, metadata_file_path)
-
+        dill.dump(images, open(output_file_path, 'wb'), protocol=4)
+        dill.dump(metadata_list, open(metadata_file_path, 'wb'), protocol=4)
 
 
 def process_directory_pkl(directory):

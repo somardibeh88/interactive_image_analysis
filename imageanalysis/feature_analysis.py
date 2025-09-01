@@ -184,34 +184,47 @@ class FeaturesAnalysis():
 
 
     def create_region_tab(self):
-        # Configure region widgets
+        # Configure widget sizes
         self.region_x_slider.layout.width = '300px'
         self.region_y_slider.layout.width = '300px'
         self.region_width_text.layout.width = '300px'
         # self.region_height_text.layout.width = '300px'
-        self.specific_region_checkbox.layout.margin = '0 0 10px 0'
-        
-        return VBox([
-            HTML("<h4 style='margin-bottom: 15px;'>Region Selection</h4>"),
-            VBox([ self.specific_region_checkbox,
-                GridBox(
-                    children=[
-                        Label("   "), self.region_x_slider,
-                        Label("   "), self.region_y_slider,
-                        Label("   "), self.region_width_text,
-                        # Label("   "), self.region_height_text,
-                    ],
-                    layout=Layout(
-                        grid_template_columns='max-content 1fr',
-                        grid_gap='10px 15px',
-                        padding='15px',
-                        border='1px solid #e0e0e0',
-                        border_radius='5px',
-                        width='100%'
-                    )
-                )
-            ])
-        ], layout=Layout(padding='15px'))
+        self.specific_region_checkbox.layout.margin = '0 20px 10px 0'
+        self.display_specific_region_checkbox.layout.margin = '0 0 10px 0'
+
+        # Top row: two checkboxes side by side
+        checkbox_row = HBox(
+            [self.specific_region_checkbox, self.display_specific_region_checkbox],
+            layout=Layout(justify_content='space-between', width='100%')
+        )
+
+        # Sliders and text fields (shared)
+        sliders_box = GridBox(
+            children=[
+                Label(" "), self.region_x_slider,
+                Label(" "), self.region_y_slider,
+                Label(" "), self.region_width_text,
+                # Label(" "), self.region_height_text,
+            ],
+            layout=Layout(
+                grid_template_columns='max-content 1fr',
+                grid_gap='10px 15px',
+                padding='15px',
+                border='1px solid #e0e0e0',
+                border_radius='5px',
+                width='100%'
+            )
+        )
+
+        return VBox(
+            [
+                HTML("<h4 style='margin-bottom: 15px;'>Region Selection</h4>"),
+                checkbox_row,
+                sliders_box
+            ],
+            layout=Layout(padding='15px')
+        )
+
     
 
     def create_calibration_tab(self):
@@ -310,6 +323,7 @@ class FeaturesAnalysis():
             self.threshold_sa_slider2
         ]
         kmeans_widgets = [
+            self.kmeans_initial_dropdown,
             self.kmeans_clusters_number, 
             self.kmeans_attempts, 
             self.kmeans_epsilon
@@ -536,6 +550,12 @@ class FeaturesAnalysis():
             self.make_circular_thresh_checkbox: [self.make_circular_thresh_slider],
             self.single_atom_clusters_definer_checkbox: [self.single_atom_clusters_definer_slider],
             self.specific_region_checkbox: [
+                self.region_x_slider, 
+                self.region_y_slider,
+                self.region_width_text,
+                # self.region_height_text
+            ],
+            self.display_specific_region_checkbox: [
                 self.region_x_slider, 
                 self.region_y_slider,
                 self.region_width_text,
@@ -774,7 +794,7 @@ class FeaturesAnalysis():
 
     def kmeans_thresholding(self, img, k=2, attempts=10,
                             criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.1),
-                            flags=cv2.KMEANS_PP_CENTERS):
+                            flags=cv2.KMEANS_RANDOM_CENTERS):
         """
         Apply K-means clustering to threshold a grayscale image.
 
@@ -805,9 +825,19 @@ class FeaturesAnalysis():
 
         # Apply k-means clustering
         _, labels, centers = cv2.kmeans(pixel_values, k, None, criteria, attempts, flags)
+        # Flatten for easier indexing
+        labels = labels.flatten()
+        centers = centers.flatten()
+        # Sort centers and get mapping from old index → new sorted index
+        sort_idx = np.argsort(centers)
+        centers_sorted = centers[sort_idx]
 
-        centers = np.uint8(centers)  # convert centers back to uint8
-        centers_sorted = np.sort(centers.flatten())
+        # Remap labels to match sorted centers
+        labels_sorted = np.zeros_like(labels)
+        for new_label, old_label in enumerate(sort_idx):
+            labels_sorted[labels == old_label] = new_label
+
+        # Compute thresholds between consecutive sorted centers
         thresholds_list = [(centers_sorted[i] + centers_sorted[i + 1]) / 2
                         for i in range(len(centers_sorted) - 1)]
 
@@ -825,12 +855,13 @@ class FeaturesAnalysis():
     
     
 
-    def get_kmeans_threshold(self, masked_clean_image, k_number, attempts_number, epsilon):
+    def get_kmeans_threshold(self, masked_clean_image, k_number, attempts_number, epsilon, kmeans_init=cv2.KMEANS_RANDOM_CENTERS):
         import hashlib
         current_hash = hashlib.md5(masked_clean_image.tobytes()).hexdigest()
         
         # Cached result available
         if (self.kmeans_cache['input_hash'] == current_hash and
+            self.kmeans_cache['kmeans_init'] == kmeans_init and
             self.kmeans_cache['k'] == k_number and
             self.kmeans_cache['attempts'] == attempts_number and
             self.kmeans_cache['epsilon'] == epsilon and
@@ -844,12 +875,13 @@ class FeaturesAnalysis():
             k=k_number, 
             attempts=attempts_number, 
             criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, epsilon), 
-            flags=cv2.KMEANS_RANDOM_CENTERS
+            flags=kmeans_init
         )
 
         # Cache *both* values
         self.kmeans_cache = {
             'input_hash': current_hash,
+            'kmeans_init': kmeans_init,
             'k': k_number,
             'attempts': attempts_number,
             'epsilon': epsilon,
@@ -865,7 +897,7 @@ class FeaturesAnalysis():
             iteration_opening, iteration_closing, iteration_dilation, iteration_erosion, iteration_gradient, min_circularity, isolation_distance,
             iteration_boundary, opening2, closing2, dilation2, erosion2, gradient2, boundary2, sa_cluster_definer,
             brightness, sigmoid_alpha, sigmoid_beta, exp_transform, log_transform, make_circular,
-            contour_retrieval_modes, contour_approximation_methods, x, y, w, attempts_number, k_number, epsilon, colormap=None, slice_number=None, kernel=None, masked_color=None, display_images=True):
+            contour_retrieval_modes, contour_approximation_methods, x, y, w, kmeans_init, attempts_number, k_number, epsilon, colormap=None, slice_number=None, kernel=None, masked_color=None, display_images=True):
         """
         Full function with circularity filtering and isolated atom detection
         isolation_distance: Minimum pixel distance between atoms to consider them isolated (default 15)
@@ -898,19 +930,20 @@ class FeaturesAnalysis():
             # nm2_per_pixel2 = nm2_per_pixel2 / (resize_factor ** 2)
 
             # Cropping image and investigating specific area
-            if self.specific_region_checkbox.value:
+            if self.specific_region_checkbox.value or self.display_specific_region_checkbox.value:
                 # Important: we need square image to get the calibration correct (if you want to use rectangular images, you need to adjust the get_calibrated_image method in 
                 # the fft_calibration class accordingly otherwise you will get incorrect results)
                 x_adj = int(x / resize_factor)
                 y_adj = int(y / resize_factor)
                 w_adj = int(w / resize_factor)
                 h_adj = w_adj
+                rect = patches.Rectangle((x_adj, y_adj), w_adj, h_adj, linewidth=1, 
+                        edgecolor='red', facecolor='none')
                 
+            if self.specific_region_checkbox.value:
                 img = img[y_adj:y_adj+h_adj, x_adj:x_adj+w_adj]
                 nm_per_pixel, nm2_per_pixel2 = self.fft_calibration.get_calibrated_image(img, slice_number)
                 print('resulting_fov after cropping:', nm_per_pixel*img.shape[0])
-                rect = patches.Rectangle((x_adj, y_adj), w_adj, h_adj, linewidth=1, 
-                                        edgecolor='red', facecolor='none')
                 cropped_image = img.copy()
                 cropped_image = self.apply_filters(cropped_image, gamma, clahe_clip, clahe_tile, contrast, brightness, sigmoid_alpha, sigmoid_beta)
 
@@ -922,6 +955,8 @@ class FeaturesAnalysis():
                     cropped_image = self.apply_gaussian_double_gaussian(cropped_image, gaussian_sigma, double_gaussian_sigma1, double_gaussian_sigma2, double_gaussian_weight, kernel)
             # Improve visualization of the image, the filtered image won't be used for analysis rather the original image (img) will be used. This is just to see what we are analyzing
             image = self.apply_filters(norm_image, gamma, clahe_clip, clahe_tile, contrast, brightness, sigmoid_alpha, sigmoid_beta)
+            if self.apply_gaussian_double_gaussian:
+                image = self.apply_gaussian_double_gaussian(image, gaussian_sigma, double_gaussian_sigma1, double_gaussian_sigma2, double_gaussian_weight, kernel)
             peaks, properties = self.get_histogram_peaks_info(img)
             # print(f"Histogram peaks: {peaks}, Properties: {properties}")
             # Determine analysis type from dropdown
@@ -976,8 +1011,9 @@ class FeaturesAnalysis():
 
             # Trying k-means thresholding
             elif kmeans_thresholding:
-                thresh_sa = self.get_kmeans_threshold(masked_clean_image, k_number, attempts_number, epsilon)[0]
-                thresholds_list = self.get_kmeans_threshold(masked_clean_image, k_number, attempts_number, epsilon)[1]
+                kmeans_init = self.kmeans_initialization_methods[kmeans_init]
+                thresh_sa = self.get_kmeans_threshold(masked_clean_image, k_number, attempts_number, epsilon, kmeans_init=kmeans_init)[0]
+                thresholds_list = self.get_kmeans_threshold(masked_clean_image, k_number, attempts_number, epsilon, kmeans_init=kmeans_init)[1]
                 
                 # Print thresholds here instead of later
                 for i in range(len(thresholds_list)):
@@ -1015,7 +1051,12 @@ class FeaturesAnalysis():
             valid_contours_sa = []
             centroids = []
             for idx, cnt in enumerate(contours_sa):
-                area = cv2.contourArea(cnt)
+                mask = np.zeros_like(img, dtype=np.uint8)
+                cv2.drawContours(mask, [cnt], -1, 255, thickness=cv2.FILLED)
+                area = np.count_nonzero(mask)
+                contour_area = cv2.contourArea(cnt, oriented=False)  # getting absolute contour area by setting oriented=False otherwise it returns the signed area
+                # print(f"Pixel area: {area}, Contour area: {contour_area}")
+                # area = cv2.contourArea(cnt)
                 perimeter = cv2.arcLength(cnt, True)
                 
                 # Independent area check
@@ -1221,14 +1262,18 @@ class FeaturesAnalysis():
                 # Update plots with new data
                 self.axs[0,0].imshow(image, cmap=colormap)
                 self.axs[0,0].set_title('Filtered Image')
-                self.axs[0,0].add_patch(rect) if self.specific_region_checkbox.value else None
+                self.axs[0,0].add_patch(rect) if self.specific_region_checkbox.value or self.display_specific_region_checkbox.value else None
 
                 if self.specific_region_checkbox.value:
                     self.axs[0,1].imshow(cropped_image, cmap='gray')
                     self.axs[0,1].set_title('Thresholding of original image')
+                elif self.display_specific_region_checkbox.value:
+                    image = img[y_adj:y_adj+h_adj, x_adj:x_adj+w_adj]
+                    self.axs[0,1].imshow(image, cmap='gray')
+                    self.axs[0,1].set_title('Cropped region of original image')
                 else:
                     self.axs[0,1].imshow(thresh, cmap='gray')
-                    self.axs[0,1].set_title('Thresholding of original image')
+                    self.axs[0,1].set_title('Cropped region of original image')
 
                 self.axs[0,2].imshow(contour_mask, cmap=colormap)
                 self.axs[0,2].set_title('Filtered thresholded image')
@@ -1260,9 +1305,13 @@ class FeaturesAnalysis():
 
                 self.axs[1,1].imshow(thresh_sa, cmap=colormap)
                 self.axs[1,1].set_title('Threholding of the clean graphene area')
-                
-                self.axs[1,2].imshow(valid_contour_sa_mask, cmap='gray')
-                self.axs[1,2].set_title('Filtered clusters and single atoms')
+                if self.display_specific_region_checkbox.value:
+                    valid_contour_sa_mask = valid_contour_sa_mask[y_adj:y_adj+h_adj, x_adj:x_adj+w_adj]
+                    self.axs[1,2].imshow(valid_contour_sa_mask, cmap='gray')
+                    self.axs[1,2].set_title('Filtered clusters and single atoms in cropped region')
+                else:
+                    self.axs[1,2].imshow(valid_contour_sa_mask, cmap='gray')
+                    self.axs[1,2].set_title('Filtered clusters and single atoms')
 
                 self.axs[1,3].plot(np.log1p(aoi_histogram), color='green')
                 self.axs[1,3].set_title('Cluster Size Distribution')
@@ -1324,6 +1373,12 @@ class FeaturesAnalysis():
         self.fig.savefig(fig_name, format='svg')
         print(f"Figure saved as {fig_name}")
 
+        # force filesystem sync
+        if os.name == 'nt':  # For Windows
+            os.system(f'cmd /c "echo. > {os.path.join(dirname, "refresh.tmp")}"')
+            os.remove(os.path.join(dirname, "refresh.tmp"))
+        else:  # For Linux/Mac
+            os.sync()
 
     def save_new_data_to_existing_df(self, _):
         """Saves/updates ONLY Calibrated_FOV and Entire_Area_nm2 in CSV
@@ -1376,6 +1431,23 @@ class FeaturesAnalysis():
             import traceback
             traceback.print_exc()
 
+
+
+    def _force_filesystem_refresh(self, directory):
+        """Force filesystem refresh in VS Code"""
+        temp_file = os.path.join(directory, ".__refresh__")
+        
+        # Create and immediately delete a temp file
+        try:
+            with open(temp_file, 'w') as f:
+                f.write('')
+            os.remove(temp_file)
+        except Exception as e:
+            print(f"Warning: Could not force refresh ({str(e)})")
+        
+        # Additional sync for Linux/Mac
+        if os.name != 'nt':
+            os.sync()
 
 
     def save_data(self, _):
@@ -1470,6 +1542,7 @@ class FeaturesAnalysis():
                 'x' : self.region_x_slider.value,
                 'y' : self.region_y_slider.value,
                 'w' : self.region_width_text.value,
+                "kmeans_init": self.kmeans_initial_dropdown.value,
                 "attempts_number": self.kmeans_attempts.value,
                 "k_number": self.kmeans_clusters_number.value,
                 "epsilon": self.kmeans_epsilon.value,
@@ -1607,6 +1680,7 @@ class FeaturesAnalysis():
                 ("Max_Cluster_Area_nm2", self.max_cluster_area_slider),
                 ("Contour_retrieval_modes", self.contour_retrieval_dropdown),
                 ("Contour_approximation_methods", self.contour_approximation_dropdown),
+                ("Kmeans_Initialization", self.kmeans_initial_dropdown),
                 ("Kmeans_Attempts_Number", self.kmeans_attempts),
                 ("Kmeans_Clusters_Number", self.kmeans_clusters_number),
                 ("Kmeans_Epsilon", self.kmeans_epsilon),
@@ -1686,8 +1760,11 @@ class FeaturesAnalysis():
                 # Create new file with enforced column order
                 new_row.to_csv(filename, index=False)
                 print(f"Created new file: {filename}")
-                
-            print(f"Successfully saved data to {filename}")
+
+            csv_path = os.path.abspath(filename)
+            dir_path = os.path.dirname(csv_path)
+            self._force_filesystem_refresh(dir_path)
+            print(f"Successfully saved data to {csv_path}")
                 
         except Exception as e:
             print(f"CSV save failed: {str(e)}")
@@ -1735,6 +1812,7 @@ class FeaturesAnalysis():
                                                             'x' : self.region_x_slider,
                                                             'y' : self.region_y_slider,
                                                             'w' : self.region_width_text,
+                                                            'kmeans_init': self.kmeans_initial_dropdown,
                                                             'attempts_number': self.kmeans_attempts,
                                                             'k_number': self.kmeans_clusters_number,
                                                             'epsilon': self.kmeans_epsilon,
