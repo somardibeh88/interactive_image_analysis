@@ -48,12 +48,13 @@ DEFAULTS = {
     "Kmeans_Initialization": "K-means++",
     "Kmeans_Clusters_Number": 2,
     "Kmeans_Attempts_Number": 10,
-    "Kmeans_Epsilon": 0.01
+    "Kmeans_Epsilon": 0.01,
+    "Threshold_Method": "manual",
 }
 
 
 COLUMNS_ORDER = ['Slice',  'Analysis_Type', 'Number_of_Layers','Feature_Analysis_Type', 'Contour_retrieval_modes', 'Contour_approximation_methods',
-                 'Threshold1', 'Threshold2', 'Threshold_SA1','Threshold_SA2', 'Kmeans_Initialization',
+                 'Threshold1', 'Threshold2', 'Threshold_Method', 'Threshold_SA1','Threshold_SA2', 'Kmeans_Initialization',
                  'Thresholds_List_Kmeans','Kmeans_Clusters_Number', 'Kmeans_Attempts_Number', 'Kmeans_Epsilon', 
                 #  'Resize_Factor', 'Resize_Method',
                  'Clean_Area_nm2', 'Contamination_Area_nm2', 

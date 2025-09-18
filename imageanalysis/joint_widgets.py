@@ -3,14 +3,18 @@ Joint widgets for interactive image analysis.
 
 Author: Somar Dibeh
 """""""""""""""""""""""""""""
+
 import cv2
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QApplication
 from ipywidgets import (interactive_output, HBox, VBox, FloatSlider, IntSlider, 
                         Checkbox, Button, Output, Dropdown, IntText, FloatText, 
                         Text, HTML, Tab, Accordion, Layout, GridBox, ToggleButton)
 
+from matplotlib import colormaps
 
-
+import numpy as np
+from matplotlib.colors import LinearSegmentedColormap
+import os
 
 ###################### Droplists  ######################
 materials = {'hBN': 2.504, 'Graphene': 2.46, 'MoS2': 3.212 }
@@ -33,7 +37,34 @@ analysis_type = ['Clean_area_analysis', 'Contaminated_area_analysis']
 feature_analysis_type = ['Single_atom_clusters_analysis', 'Defects_analysis'] 
 
 
-def create_widgets():    
+
+def load_moreland_colormap(filepath, name):
+    data = np.loadtxt(filepath, delimiter=',', skiprows=1)
+    positions = data[:, 0]
+    colors = data[:, 1:4]
+    return LinearSegmentedColormap.from_list(name, list(zip(positions, colors)), N=256)
+
+BASE_PATH = os.path.join(os.path.dirname(__file__), "colormaps")
+print(BASE_PATH)
+
+files = {
+    "blackbody": "black-body-table-float-0256.csv",
+    "kindlmann": "kindlmann-table-float-0256.csv",
+}
+
+
+custom_colormaps = {
+    "blackbody": load_moreland_colormap(os.path.join(BASE_PATH, "black-body-table-float-0256.csv"), "blackbody"),
+    "kindlmann": load_moreland_colormap(os.path.join(BASE_PATH, "kindlmann-table-float-0256.csv"), "kindlmann"),
+}
+
+# Register only your custom colormaps
+for name, cmap in custom_colormaps.items():
+    if name not in colormaps:
+        colormaps.register(cmap)
+
+
+def create_widgets():
     """
     Create and return a dictionary of widgets used in the image analysis application.
     This function initializes various widgets such as sliders, dropdowns, checkboxes, etc.
@@ -50,10 +81,22 @@ def create_widgets():
     kmeans_initialization_methods = {'K-means++': cv2.KMEANS_PP_CENTERS, 'Random': cv2.KMEANS_RANDOM_CENTERS}
     ###################### Dropdowns ######################
     colormap_dropdown = Dropdown(
-        options=[ 'gray', 'viridis', 'plasma', 'inferno', 'magma', 'cividis',
-        'Greys', 'Purples', 'Blues', 'Greens', 'Oranges', 'Reds',
-        'bone', 'pink', 'spring', 'summer', 'autumn', 'winter',
-        'cool', 'Wistia', 'hot', 'afmhot', 'gist_heat', 'copper'],
+        options=[
+                'gray', 'viridis', 'cividis', 'plasma', 'magma', 'inferno',
+                # Blue–Green
+                'GnBu', 'BuGn', 'PuBuGn', 'YlGnBu', 'BuPu',
+                # Blue–Red
+                'bwr', 'seismic', 'coolwarm', 'RdBu',
+                # Purple–Green
+                'PRGn', 'PiYG', 'PuOr',
+                # Brown–Blue
+                'BrBG',
+                # Heat-like
+                'hot', 'afmhot', 'gist_heat',
+                # Special
+                'Spectral', 'twilight',
+                'blackbody', 'kindlmann', 
+            ],
         value='gray', description='Colormap:', continuous_update=False,
         layout={'width': '95%'})
 
@@ -209,7 +252,7 @@ def create_widgets():
     threshold_sa_checkbox = Checkbox(value=False, description='2nd Threshold SA', layout={'width': '95%'})
 
     # Choose thresholding method
-    thresh_method_dropdown = Dropdown(options=['Manual', 'K-means'], value='Manual', description='Thresholding Method')
+    thresh_method_dropdown = Dropdown(options=['Manual', 'K-means', 'Iterative Otsu'], value='Manual', description='Thresholding Method')
     # K-means Thresholding widget
     kmeans_clusters_number = IntSlider(value=3, min=2, max=10, description='KM Clusters', continuous_update=False)
     kmeans_attempts = IntSlider(value=60, min=1, max=100, description='KM Attempts', continuous_update=False)

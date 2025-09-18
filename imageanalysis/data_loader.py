@@ -66,7 +66,48 @@ class MetadataMethods:
             return extracted_values[0]
         return extracted_values
     
-    
+
+    def key_in(self, required_key, data=None):
+        if data is None:
+            data = self._get_full_metadata()
+
+        if isinstance(data, dict):
+            # Check if the required key is directly in the dictionary
+            if required_key in data.keys():
+                return True
+            # Recursively check in each value
+            for value in data.values():
+                if isinstance(value, (dict, list)):
+                    if self.key_in(required_key, value):
+                        return True
+        elif isinstance(data, list):
+            # Recursively check each item in the list
+            for item in data:
+                if self.key_in(required_key, item):
+                    return True
+        return False
+
+
+    def value_in(self, required_value, data=None, output=False):
+        """A function to check if a sepicfic required value is found in the json file and return a boolean expression:
+            False if it is not in the json file and True if it is found in the json file
+           The function may be useful for later use to create a list of [False, True .....] logic that can be used 
+            as a condition inside another functions """
+        if data is None:
+            data = self._get_full_metadata()
+
+        if isinstance(data, dict):
+            for value in required_value:
+                if value in data.values():
+                    output = True
+            for value in data.values():
+                if isinstance(value, (list, dict)):
+                    output = self.value_in(required_value, value, output)
+        elif isinstance(data, list):
+            for item in data:
+                output = self.value_in(required_value, item, output)
+        return output
+
 
 # ================== Unified Loader for different file formats ==================
 class UnifiedLoader:

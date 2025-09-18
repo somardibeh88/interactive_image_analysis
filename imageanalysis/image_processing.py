@@ -433,8 +433,8 @@ class CalibratedImages():
         # Apply morphological operations and normalization
         image = closing(image, closen, kernel)
         print(f"Image {slice_number} shape:", image.shape)
-        pixel_time_us = self.raw_metadata.get_specific_metadata("pixel_time_us", required_keys = ['scan_device_properties'])[slice_number]
-        print(f"Pixel time in microseconds: {pixel_time_us}")
+        # pixel_time_us = self.raw_metadata.get_specific_metadata("pixel_time_us", required_keys = ['scan_device_properties'])[slice_number]
+        # print(f"Pixel time in microseconds: {pixel_time_us}")
         image = (image - np.min(image)) / (np.max(image) - np.min(image)) * 255 
         image = self.apply_filters(image, gamma, clahe_clip, clahe_tile, gaussian_sigma, contrast, double_gaussian_sigma1, double_gaussian_sigma2, double_gaussian_weight, kernel,
                     brightness, sigmoid_alpha, sigmoid_beta)

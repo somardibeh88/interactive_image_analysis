@@ -122,12 +122,7 @@ class FeaturesAnalysis():
 
             [self.brightness_checkbox, self.brightness_slider],
 
-            [self.kernel_size_checkbox, self.kernel_size_slider],
-            # [self.resize_checkbox, VBox([
-            #     self.resize_factor_slider, 
-            #     self.resize_method_dropdown
-            # ])],
-        ]
+            [self.kernel_size_checkbox, self.kernel_size_slider],]
         
         for pair in grid_children:
             # Set checkbox layout
@@ -526,7 +521,6 @@ class FeaturesAnalysis():
             ],
             self.brightness_checkbox: [self.brightness_slider],
             self.kernel_size_checkbox: [self.kernel_size_slider],
-            self.resize_checkbox: [self.resize_factor_slider, self.resize_method_dropdown],
             self.threshold_checkbox: [self.threshold_slider1, self.threshold_slider2],
             self.dilation_checkbox: [self.dilation_slider],
             self.erosion_checkbox: [self.erosion_slider],
@@ -891,6 +885,35 @@ class FeaturesAnalysis():
         return thresh_sa, thresholds_list
 
 
+    def resize_image(self, image, factor, method):
+        import cv2
+        if factor == 1.0:
+            return image  # No resizing needed
+
+        interpolation_method = self.INTERPOLATION_MAP.get(method, cv2.INTER_LINEAR)
+        new_size = (int(image.shape[1] * factor), int(image.shape[0] * factor))
+        resized_image = cv2.resize(image, new_size, interpolation=interpolation_method)
+        return resized_image
+
+
+
+    def get_valid_contours(self, image, threshold1, threshold2, clean_graphene_analysis, min_area, max_area, iteration_opening, 
+                           iteration_closing, iteration_dilation, iteration_erosion, iteration_gradient, iteration_boundary, kernel, nm2_per_pixel2):
+        
+        thresh = cv2.inRange(image, threshold1, threshold2) if clean_graphene_analysis else ~cv2.inRange(image, threshold1, threshold2)
+        thresh = thresh.astype(np.uint8)
+        percentile_threshold1, percentile_threshold2 = np.sum(image<=threshold1) / image.size * 100, np.sum(image<=threshold2) / image.size * 100
+        percentile_grey_values1, percentile_grey_values2 = threshold1 / 255 * 100, threshold2 / 255 * 100
+        print(f"1st threshold value: {threshold1}, Percentile area: {percentile_threshold1:.2f}%, Percentile grey values: {percentile_grey_values1:.2f}%")
+        print(f"2nd threshold value: {threshold2}, Percentile area: {percentile_threshold2:.2f}%, Percentile grey values: {percentile_grey_values2:.2f}%")
+        thresh = self.apply_morphological_operations(thresh, iteration_opening, iteration_closing, iteration_dilation,
+                                                    iteration_erosion, iteration_gradient, iteration_boundary, kernel)
+        # Clean area detection
+        contours, _ = cv2.findContours(thresh.astype(np.uint8), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_TC89_L1)
+        valid_contours = [cnt for cnt in contours if min_area <= (cv2.contourArea(cnt) * nm2_per_pixel2) < max_area]
+        return valid_contours, thresh
+
+
 
     def analyse_features(self, threshold1, threshold2, threshold_sa1, threshold_sa2, gamma, clahe_clip, clahe_tile, gaussian_sigma, contrast, min_clean_cont_area, min_cluster_area,
             max_cluster_area, max_clean_cont_area, double_gaussian_sigma1, double_gaussian_sigma2, double_gaussian_weight, 
@@ -899,43 +922,42 @@ class FeaturesAnalysis():
             brightness, sigmoid_alpha, sigmoid_beta, exp_transform, log_transform, make_circular,
             contour_retrieval_modes, contour_approximation_methods, x, y, w, kmeans_init, attempts_number, k_number, epsilon, colormap=None, slice_number=None, kernel=None, masked_color=None, display_images=True):
         """
-        Full function with circularity filtering and isolated atom detection
-        isolation_distance: Minimum pixel distance between atoms to consider them isolated (default 15)
+        isolation_distance: Minimum pixel distance between atoms to consider them isolated
+        The image is saved in many variables name for a purpose:
+        img: original image after normalization that undergoes only (Gaussian, Double Gaussian) filtering and that is used for the analysis
+        image: image used for display that undergoes all the filters selected
+        cropped_image: cropped image used for display when display specific region is selected and for analysis when select specific region checkbox is selected
+        norm_image: normalized original image used for display when no filters are selected
         """
         import cv2
         from scipy.signal import find_peaks
+        from skimage import filters
         with self.calibration_display:
             clear_output(wait=True)
         try:
             original_image = self.stack.raw_data[slice_number]
             nm_per_pixel, nm2_per_pixel2 = self.fft_calibration.get_calibrated_image(original_image, slice_number)
-
-            pixel_time_us = self.metadata.get_specific_metadata("pixel_time_us", required_keys = ['scan_device_properties'])[slice_number]
-            print(f"Pixel time in microseconds: {pixel_time_us}")
-            # Preprocess the image by applying a smoothing to prepare for thresholding
-            img = cv2.normalize(original_image, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+            if self.metadata.key_in('pixel_time_us', data=self.metadata[slice_number]) is True:
+                print('True')
+                pixel_time_us = self.metadata.get_specific_metadata("pixel_time_us", required_keys=['scan_device_properties'])[slice_number]
+                print(f"Pixel time in microseconds: {pixel_time_us}")
+            else:
+                print("Pixel time information not available in metadata.")
+            # Avoiding complex images
+            if np.iscomplexobj(original_image):
+                img_in = np.real(original_image)  # magnitude for complex
+            else:
+                img_in = original_image          # keep real values (even negative)
+            img = cv2.normalize(img_in, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
             norm_image = img.copy()
-            # Resize if enabled
-            # if self.resize_checkbox.value:
-            #     interpolation_method = self.INTERPOLATION_MAP[self.resize_method_dropdown.value]
-            #     img = cv2.resize(img, (int(img.shape[1] * self.resize_factor_slider.value), 
-            #                     int(img.shape[0] * self.resize_factor_slider.value)), 
-            #                     interpolation=interpolation_method)
-            #     resize_factor = self.resize_factor_slider.value
-            # else:
-            resize_factor = 1.0
-            
-            # # Compute effective pixel size after resizing
-            # nm_per_pixel = nm_per_pixel / resize_factor
-            # nm2_per_pixel2 = nm2_per_pixel2 / (resize_factor ** 2)
 
             # Cropping image and investigating specific area
             if self.specific_region_checkbox.value or self.display_specific_region_checkbox.value:
                 # Important: we need square image to get the calibration correct (if you want to use rectangular images, you need to adjust the get_calibrated_image method in 
                 # the fft_calibration class accordingly otherwise you will get incorrect results)
-                x_adj = int(x / resize_factor)
-                y_adj = int(y / resize_factor)
-                w_adj = int(w / resize_factor)
+                x_adj = int(x)
+                y_adj = int(y)
+                w_adj = int(w)
                 h_adj = w_adj
                 rect = patches.Rectangle((x_adj, y_adj), w_adj, h_adj, linewidth=1, 
                         edgecolor='red', facecolor='none')
@@ -955,10 +977,9 @@ class FeaturesAnalysis():
                     cropped_image = self.apply_gaussian_double_gaussian(cropped_image, gaussian_sigma, double_gaussian_sigma1, double_gaussian_sigma2, double_gaussian_weight, kernel)
             # Improve visualization of the image, the filtered image won't be used for analysis rather the original image (img) will be used. This is just to see what we are analyzing
             image = self.apply_filters(norm_image, gamma, clahe_clip, clahe_tile, contrast, brightness, sigmoid_alpha, sigmoid_beta)
-            if self.apply_gaussian_double_gaussian:
-                image = self.apply_gaussian_double_gaussian(image, gaussian_sigma, double_gaussian_sigma1, double_gaussian_sigma2, double_gaussian_weight, kernel)
+            image = self.apply_gaussian_double_gaussian(image, gaussian_sigma, double_gaussian_sigma1, double_gaussian_sigma2, double_gaussian_weight, kernel)
             peaks, properties = self.get_histogram_peaks_info(img)
-            # print(f"Histogram peaks: {peaks}, Properties: {properties}")
+
             # Determine analysis type from dropdown
             analysis_type = self.analysis_type_dropdown.value
             clean_graphene_analysis = (analysis_type == 'Clean_area_analysis')
@@ -969,22 +990,10 @@ class FeaturesAnalysis():
             clusters_sa_analysis = (feature_analysis_type == 'Single_atom_clusters_analysis')
             defects_analysis = (feature_analysis_type == 'Defects_analysis')
 
-            # Thresholding and morphology
-            thresh_type = cv2.THRESH_BINARY_INV if clean_graphene_analysis else cv2.THRESH_BINARY
-            # thresh_value, thresh = cv2.threshold(img, threshold, 255, thresh_type)
-            thresh = cv2.inRange(img, threshold1, threshold2) if clean_graphene_analysis else ~cv2.inRange(img, threshold1, threshold2)
-            thresh = thresh.astype(np.uint8)
-            percentile_threshold1, percentile_threshold2 = np.sum(img<=threshold1) / img.size * 100, np.sum(img<=threshold2) / img.size * 100
-            percentile_grey_values1, percentile_grey_values2 = threshold1 / 255 * 100, threshold2 / 255 * 100
-            print(f"1st threshold value: {threshold1}, Percentile area: {percentile_threshold1:.2f}%, Percentile grey values: {percentile_grey_values1:.2f}%")
-            print(f"2nd threshold value: {threshold2}, Percentile area: {percentile_threshold2:.2f}%, Percentile grey values: {percentile_grey_values2:.2f}%")
-            thresh = self.apply_morphological_operations(thresh, iteration_opening, iteration_closing, iteration_dilation,
-                                                        iteration_erosion, iteration_gradient, iteration_boundary, kernel)
+            valid_contours, first_thresh = self.get_valid_contours(img, threshold1, threshold2, clean_graphene_analysis, min_clean_cont_area, max_clean_cont_area, 
+                                                    iteration_opening, iteration_closing, iteration_dilation, iteration_erosion, iteration_gradient, 
+                                                    iteration_boundary, kernel, nm2_per_pixel2)
 
-            # Clean area detection
-            contours, _ = cv2.findContours(thresh.astype(np.uint8), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_TC89_L1)
-            # contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-            valid_contours = [cnt for cnt in contours if min_clean_cont_area <= (cv2.contourArea(cnt) * nm2_per_pixel2) < max_clean_cont_area]
             contour_mask = np.zeros_like(img).astype(np.uint8)
             cv2.drawContours(contour_mask, valid_contours, -1, 255, thickness=cv2.FILLED)
 
@@ -995,19 +1004,60 @@ class FeaturesAnalysis():
 
             masked_clean_image = cv2.bitwise_and(img, img, mask=contour_mask)
 
+            # Otsu for second masking
+            # Apply Otsu thresholding directly
+            otsu_thresh_value, otsu_mask = cv2.threshold(masked_clean_image.astype(np.uint8), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+            # Optional: filter contours by area
+            contours_otsu, _ = cv2.findContours(otsu_mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
+
+
+            # Draw valid contours into mask
+            contour_mask_otsu = np.zeros_like(masked_clean_image, dtype=np.uint8)
+            cv2.drawContours(contour_mask_otsu, contours_otsu, -1, 255, thickness=cv2.FILLED)
+
+            # Apply final mask
+            masked_clean_image1 = cv2.bitwise_and(masked_clean_image, masked_clean_image, mask=contour_mask_otsu)
+            masked_clean_image1 = np.where(masked_clean_image1 < otsu_thresh_value, otsu_thresh_value, masked_clean_image1).astype(np.uint8)
+
             thresholds_list = []
             # Determine second thresholding method
             threshold_method = self.thresh_method_dropdown.value
             manual_thresholding = (threshold_method == 'Manual')
             kmeans_thresholding = (threshold_method == 'K-means')
+            iterative_otsu_thresholding = (threshold_method == 'Iterative Otsu')
+
+            from skimage.filters import threshold_multiotsu
+
             if manual_thresholding:
                 if clusters_sa_analysis:
-                    thresh_sa = cv2.inRange(masked_clean_image, threshold_sa1, threshold_sa2)
+                    thresh_sa = cv2.inRange(masked_clean_image1, threshold_sa1, threshold_sa2)
                 elif defects_analysis:
-                    thresh_sa = ~cv2.inRange(masked_clean_image, threshold_sa1, threshold_sa2)
+                    thresh_sa = ~cv2.inRange(masked_clean_image1, threshold_sa1, threshold_sa2)
                 else:
-                    thresh_sa = np.zeros_like(masked_clean_image, dtype=np.uint8)
-                thresholds_list = []
+                    thresh_sa = np.zeros_like(masked_clean_image1, dtype=np.uint8)
+     
+            # Iterative Otsu thresholding
+            elif iterative_otsu_thresholding:
+                unique_vals = np.unique(masked_clean_image1)
+                if unique_vals.size >= 4:   # enough values for 4 classes
+                    thresholds = threshold_multiotsu(masked_clean_image1, classes=3)
+                    regions = np.digitize(masked_clean_image, bins=thresholds)
+                    thresholds_list = thresholds.tolist()
+                else:
+                    thresholds = np.array([])
+                    regions = np.zeros_like(masked_clean_image1)
+                    thresholds_list = []
+                regions = np.digitize(masked_clean_image1, bins=thresholds)
+                if clusters_sa_analysis:
+                    # Example: keep only the highest-intensity class (atoms/bright features)
+                    thresh_sa = (regions == 2).astype(np.uint8) * 255
+                elif defects_analysis:
+                    # Example: keep the lowest-intensity class (dark defects)
+                    thresh_sa = (regions == 0).astype(np.uint8) * 255
+                else:
+                    # Default: keep everything
+                    thresh_sa = np.zeros_like(masked_clean_image1, dtype=np.uint8)
 
             # Trying k-means thresholding
             elif kmeans_thresholding:
@@ -1022,13 +1072,7 @@ class FeaturesAnalysis():
                     print(f"2nd threshold value: {thresholds_list[i]}, Percentile area: {percentile_threshold_sa:.2f}%, Percentile grey values: {percentile_grey_values:.2f}%")
             else:
                 raise ValueError("Invalid thresholding method selected. Choose 'Manual' or 'K-means'.")
-            #     np.random.seed(42)  # For reproducibility
-            #     thresh_sa, thresholds_list = self.kmeans_thresholding(masked_clean_image, k=k_number, attempts=attempts_number, criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 200, epsilon), flags=cv2.KMEANS_RANDOM_CENTERS)
-            #     for i in range(len(thresholds_list)):
-            #         percentile_threshold_sa = np.sum(masked_clean_image<=thresholds_list[i]) / masked_clean_image.size * 100
-            #         print(f"2nd threshold value: {thresholds_list[i]}, Percentile: {percentile_threshold_sa:.2f}%")
-            # else:
-            #     raise ValueError("Invalid thresholding method selected. Choose 'Manual' or 'K-means'.")
+
             thresh_sa = thresh_sa.astype(np.uint8)
             thresh_sa = self.apply_morphological_operations2(thresh_sa, opening2, closing2, dilation2, erosion2, gradient2, boundary2, kernel)
 
@@ -1051,12 +1095,11 @@ class FeaturesAnalysis():
             valid_contours_sa = []
             centroids = []
             for idx, cnt in enumerate(contours_sa):
-                mask = np.zeros_like(img, dtype=np.uint8)
-                cv2.drawContours(mask, [cnt], -1, 255, thickness=cv2.FILLED)
-                area = np.count_nonzero(mask)
-                contour_area = cv2.contourArea(cnt, oriented=False)  # getting absolute contour area by setting oriented=False otherwise it returns the signed area
-                # print(f"Pixel area: {area}, Contour area: {contour_area}")
-                # area = cv2.contourArea(cnt)
+                # mask = np.zeros_like(img, dtype=np.uint8)
+                # cv2.drawContours(mask, [cnt], -1, 255, thickness=cv2.FILLED)
+                # area = np.count_nonzero(mask)            # Choosing this will gives the exact area of pixels in the contour and fit the display when changing the area condition slider, but overestimates the area for small contours
+                # contour_area = cv2.contourArea(cnt)     # Choosing this will gives the area based on the contour line, which is more accurate for small contours but does not fit the display
+                area = cv2.contourArea(cnt, oriented=False)  # getting absolute contour area by setting oriented=False otherwise it returns the signed area
                 perimeter = cv2.arcLength(cnt, True)
                 
                 # Independent area check
@@ -1239,14 +1282,18 @@ class FeaturesAnalysis():
 
 
             masked_image = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-            masked_image[contour_mask == 0] = self.mask_color(masked_color)
+            masked_image[otsu_mask == 0] = self.mask_color(masked_color)
             cv2.drawContours(masked_image, valid_contours_sa, -1, (0, 255, 0), 1)
 
 
             if display_images:
-                    
+                mask_min = masked_clean_image1.min() if masked_clean_image1.min() > 0 else 0   
+                if otsu_thresh_value is not None and otsu_thresh_value > 0:
+                    min_hist = otsu_thresh_value
+                else: 
+                    min_hist = 0
                 histogram, bins = np.histogram(img, bins=256, range=(0, 255))
-                aoi_histogram, aoi_bins = np.histogram(masked_clean_image, bins=256, range=(0, 255))    # aoi = area of interest
+                aoi_histogram, aoi_bins = np.histogram(masked_clean_image1, bins=256, range=(mask_min, 255))    # aoi = area of interest
                 valid_contour_sa_mask = np.zeros_like(img)
                 cv2.drawContours(valid_contour_sa_mask, modified_contours, -1, 255, thickness=cv2.FILLED)
 
@@ -1272,7 +1319,7 @@ class FeaturesAnalysis():
                     self.axs[0,1].imshow(image, cmap='gray')
                     self.axs[0,1].set_title('Cropped region of original image')
                 else:
-                    self.axs[0,1].imshow(thresh, cmap='gray')
+                    self.axs[0,1].imshow(first_thresh, cmap='gray')
                     self.axs[0,1].set_title('Cropped region of original image')
 
                 self.axs[0,2].imshow(contour_mask, cmap=colormap)
@@ -1318,7 +1365,7 @@ class FeaturesAnalysis():
                 self.axs[1,3].set_xlabel('Cluster Area (nm²)')
                 self.axs[1,3].set_ylabel('Count')
                 self.axs[1,3].grid(True)
-                self.axs[1,3].set_xlim(0, 40)  
+                self.axs[1,3].set_xlim(min_hist - 1, 60)  
                 self.axs[1,3].set_ylim(0, 30)
                 if kmeans_thresholding:
                     for threshold in thresholds_list:
@@ -1537,8 +1584,6 @@ class FeaturesAnalysis():
                 "log_transform": self.log_transform_checkbox.value,
                 'contour_retrieval_modes': self.contour_retrieval_dropdown.value,
                 'contour_approximation_methods': self.contour_approximation_dropdown.value,
-                # "resize_factor": self.resize_factor_slider.value,
-                # "resize_method": self.resize_method_dropdown.value,
                 'x' : self.region_x_slider.value,
                 'y' : self.region_y_slider.value,
                 'w' : self.region_width_text.value,
@@ -1634,12 +1679,11 @@ class FeaturesAnalysis():
 
         # 4. Add filter parameters to CSV data
         try:
+            new_data['Threshold_Method'] = self.thresh_method_dropdown.value
             filter_params = {}
             for param, widget in [
                 ("Analysis_Type", self.analysis_type_dropdown),
                 ("Feature_Analysis_Type", self.feature_analysis_type_dropdown),
-                # ("Resize_Factor", self.resize_factor_slider),
-                # ("Resize_Method", self.resize_method_dropdown),
                 ("Kernel_Size", self.kernel_size_slider),
                 ("Threshold1", self.threshold_slider1),
                 ("Threshold2", self.threshold_slider2),
@@ -1684,7 +1728,27 @@ class FeaturesAnalysis():
                 ("Kmeans_Attempts_Number", self.kmeans_attempts),
                 ("Kmeans_Clusters_Number", self.kmeans_clusters_number),
                 ("Kmeans_Epsilon", self.kmeans_epsilon),
+                ("Thresh_Method", self.thresh_method_dropdown),
             ]:
+                threshold_method = self.thresh_method_dropdown.value
+        
+                if threshold_method == 'Manual':
+                    # Set K-means parameters to NaN
+                    filter_params.update({
+                        "Kmeans_Initialization": np.nan,
+                        "Kmeans_Attempts_Number": np.nan,
+                        "Kmeans_Clusters_Number": np.nan,
+                        "Kmeans_Epsilon": np.nan
+                    })
+                elif threshold_method == 'K-means':
+                    # Set manual threshold parameters to NaN
+                    filter_params.update({
+                        "Threshold_SA1": np.nan,
+                        "Threshold_SA2": np.nan
+                    })
+                    
+                new_data.update(filter_params)
+                print("Filter parameters collected")
                 try:
                     value = widget.value
                     default = DEFAULTS.get(param)
@@ -1807,8 +1871,6 @@ class FeaturesAnalysis():
                                                             'log_transform': self.log_transform_checkbox,
                                                             'contour_retrieval_modes': self.contour_retrieval_dropdown,
                                                             'contour_approximation_methods':self.contour_approximation_dropdown,
-                                                            # 'resize_factor': self.resize_factor_slider,
-                                                            # 'resize_method': self.resize_method_dropdown,
                                                             'x' : self.region_x_slider,
                                                             'y' : self.region_y_slider,
                                                             'w' : self.region_width_text,

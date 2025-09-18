@@ -13,6 +13,8 @@ imageanalysis/getting_rotation_angle_4dstem.ipynb
 imageanalysis/vcr_to_gif_calibrated.py
 imageanalysis/__pycache__/
 myenv_backup.yml
+__pycache__/
+*.pyc
 **/*.h5
 **/*.hdf5
 **/*.pkl
