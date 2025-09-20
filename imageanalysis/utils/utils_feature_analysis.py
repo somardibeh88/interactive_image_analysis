@@ -56,7 +56,7 @@ DEFAULTS = {
 COLUMNS_ORDER = ['Slice',  'Analysis_Type', 'Number_of_Layers','Feature_Analysis_Type', 'Contour_retrieval_modes', 'Contour_approximation_methods',
                  'Threshold1', 'Threshold2', 'Threshold_Method', 'Threshold_SA1','Threshold_SA2', 'Kmeans_Initialization',
                  'Thresholds_List_Kmeans','Kmeans_Clusters_Number', 'Kmeans_Attempts_Number', 'Kmeans_Epsilon', 
-                #  'Resize_Factor', 'Resize_Method',
+                 'Otsu_Classes_Number', 'Otsu_Region_Selection',
                  'Clean_Area_nm2', 'Contamination_Area_nm2', 
                  'Number_of_Clusters', 'Total_Cluster_Area_nm2', 'Clusters_Density', 'Clusters', 'Num_Atoms', 
                  'Atoms_Area', 'Atoms_Density', 'Atoms', 'Calibrated_FOV', 'Entire_Area_nm2', 
@@ -115,7 +115,7 @@ def process_pair( pair, contours, centers, radii, nm_per_pixel, isolation_px, mi
 
     area_i = cv2.contourArea(contours[i]) * nm_per_pixel**2
     area_j = cv2.contourArea(contours[j]) * nm_per_pixel**2
-    if area_i < 0.025 or area_j < 0.025:    # exclude very small contours
+    if area_i < 0.015 or area_j < 0.015:    # exclude very small contours
         return None
 
     center_dist = np.linalg.norm(centers[i] - centers[j])

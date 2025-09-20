@@ -76,6 +76,7 @@ class FeaturesAnalysis():
 
         self.manual_thresh_container = HBox(())
         self.kmeans_container = HBox(())
+        self.otsu_thresh_container = HBox(())
         # K-means cache
         self.kmeans_cache = {
             'input_hash': None,
@@ -323,17 +324,22 @@ class FeaturesAnalysis():
             self.kmeans_attempts, 
             self.kmeans_epsilon
         ]
-        
+        otsu_thresholding_widgets = [
+            self.iterative_otsu_classes_number,
+            self.iterative_otsu_region_selection
+        ]
         # Update existing containers' children
         self.manual_thresh_container.children = tuple(manual_thresh_widgets)
         self.kmeans_container.children = tuple(kmeans_widgets)
+        self.otsu_thresh_container.children = tuple(otsu_thresholding_widgets)
         
         rows = [
             [self.thresh_method_dropdown, 
             self.contour_retrieval_dropdown, 
             self.contour_approximation_dropdown],
-            self.manual_thresh_container,
+            self.otsu_thresh_container,
             self.kmeans_container,
+            self.manual_thresh_container,
             [self.min_cluster_area_checkbox, self.min_cluster_area_slider],
             [self.max_cluster_area_checkbox, self.max_cluster_area_slider],
             [self.dilation2_checkbox, self.dilation2_slider],
@@ -587,9 +593,15 @@ class FeaturesAnalysis():
         if method == 'Manual':
             self.manual_thresh_container.layout.display = ''
             self.kmeans_container.layout.display = 'none'
+            self.otsu_thresh_container.layout.display = 'none'
         elif method == 'K-means':
             self.manual_thresh_container.layout.display = 'none'
             self.kmeans_container.layout.display = ''
+            self.otsu_thresh_container.layout.display = 'none'
+        elif method == 'Iterative Otsu':
+            self.manual_thresh_container.layout.display = 'none'
+            self.kmeans_container.layout.display = 'none'
+            self.otsu_thresh_container.layout.display = ''
 
 
     def update_reference_image(self, change):
@@ -920,7 +932,8 @@ class FeaturesAnalysis():
             iteration_opening, iteration_closing, iteration_dilation, iteration_erosion, iteration_gradient, min_circularity, isolation_distance,
             iteration_boundary, opening2, closing2, dilation2, erosion2, gradient2, boundary2, sa_cluster_definer,
             brightness, sigmoid_alpha, sigmoid_beta, exp_transform, log_transform, make_circular,
-            contour_retrieval_modes, contour_approximation_methods, x, y, w, kmeans_init, attempts_number, k_number, epsilon, colormap=None, slice_number=None, kernel=None, masked_color=None, display_images=True):
+            contour_retrieval_modes, contour_approximation_methods, x, y, w, kmeans_init, attempts_number, k_number, epsilon, otsu_classes_number, 
+            otsu_region_selection, colormap=None, slice_number=None, kernel=None, masked_color=None, display_images=True):
         """
         isolation_distance: Minimum pixel distance between atoms to consider them isolated
         The image is saved in many variables name for a purpose:
@@ -1004,21 +1017,20 @@ class FeaturesAnalysis():
 
             masked_clean_image = cv2.bitwise_and(img, img, mask=contour_mask)
 
-            # Otsu for second masking
-            # Apply Otsu thresholding directly
-            otsu_thresh_value, otsu_mask = cv2.threshold(masked_clean_image.astype(np.uint8), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            # # Otsu for second masking in case of cluster analysis
+            # otsu_thresh_value, otsu_mask = cv2.threshold(masked_clean_image.astype(np.uint8), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-            # Optional: filter contours by area
-            contours_otsu, _ = cv2.findContours(otsu_mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
+            # # Optional: filter contours by area
+            # contours_otsu, _ = cv2.findContours(otsu_mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
 
 
-            # Draw valid contours into mask
-            contour_mask_otsu = np.zeros_like(masked_clean_image, dtype=np.uint8)
-            cv2.drawContours(contour_mask_otsu, contours_otsu, -1, 255, thickness=cv2.FILLED)
+            # # Draw valid contours into mask
+            # contour_mask_otsu = np.zeros_like(masked_clean_image, dtype=np.uint8)
+            # cv2.drawContours(contour_mask_otsu, contours_otsu, -1, 255, thickness=cv2.FILLED)
 
-            # Apply final mask
-            masked_clean_image1 = cv2.bitwise_and(masked_clean_image, masked_clean_image, mask=contour_mask_otsu)
-            masked_clean_image1 = np.where(masked_clean_image1 < otsu_thresh_value, otsu_thresh_value, masked_clean_image1).astype(np.uint8)
+            # # Apply final mask
+            # masked_clean_image= cv2.bitwise_and(masked_clean_image, masked_clean_image, mask=contour_mask_otsu)
+            # masked_clean_image = np.where(masked_clean_image < otsu_thresh_value, otsu_thresh_value, masked_clean_image).astype(np.uint8)
 
             thresholds_list = []
             # Determine second thresholding method
@@ -1028,42 +1040,46 @@ class FeaturesAnalysis():
             iterative_otsu_thresholding = (threshold_method == 'Iterative Otsu')
 
             from skimage.filters import threshold_multiotsu
-
             if manual_thresholding:
                 if clusters_sa_analysis:
-                    thresh_sa = cv2.inRange(masked_clean_image1, threshold_sa1, threshold_sa2)
+                    thresh_sa = cv2.inRange(masked_clean_image, threshold_sa1, threshold_sa2)
                 elif defects_analysis:
-                    thresh_sa = ~cv2.inRange(masked_clean_image1, threshold_sa1, threshold_sa2)
+                    thresh_sa = ~cv2.inRange(masked_clean_image, threshold_sa1, threshold_sa2)
                 else:
-                    thresh_sa = np.zeros_like(masked_clean_image1, dtype=np.uint8)
+                    thresh_sa = np.zeros_like(masked_clean_image, dtype=np.uint8)
+                thresholds_list = [threshold_sa1, threshold_sa2]
+
      
             # Iterative Otsu thresholding
             elif iterative_otsu_thresholding:
-                unique_vals = np.unique(masked_clean_image1)
-                if unique_vals.size >= 4:   # enough values for 4 classes
-                    thresholds = threshold_multiotsu(masked_clean_image1, classes=3)
+                unique_vals = np.unique(masked_clean_image)
+                if unique_vals.size >= otsu_classes_number + 1:   # enough values for 4 classes
+                    thresholds = threshold_multiotsu(masked_clean_image, classes=otsu_classes_number)
                     regions = np.digitize(masked_clean_image, bins=thresholds)
                     thresholds_list = thresholds.tolist()
                 else:
                     thresholds = np.array([])
-                    regions = np.zeros_like(masked_clean_image1)
+                    regions = np.zeros_like(masked_clean_image)
                     thresholds_list = []
-                regions = np.digitize(masked_clean_image1, bins=thresholds)
+                regions = np.digitize(masked_clean_image, bins=thresholds)
                 if clusters_sa_analysis:
                     # Example: keep only the highest-intensity class (atoms/bright features)
-                    thresh_sa = (regions == 2).astype(np.uint8) * 255
+                    thresh_sa = (regions >= otsu_region_selection).astype(np.uint8) * 255
                 elif defects_analysis:
                     # Example: keep the lowest-intensity class (dark defects)
-                    thresh_sa = (regions == 0).astype(np.uint8) * 255
+                    thresh_sa = (regions < otsu_region_selection).astype(np.uint8) * 255
                 else:
                     # Default: keep everything
-                    thresh_sa = np.zeros_like(masked_clean_image1, dtype=np.uint8)
+                    thresh_sa = np.zeros_like(masked_clean_image, dtype=np.uint8)
+                for i in range(len(thresholds_list)):
+                    percentile_threshold_sa = np.sum(masked_clean_image<=thresholds_list[i]) / masked_clean_image.size * 100
+                    percentile_grey_values = thresholds_list[i] / 255 * 100
+                    print(f"2nd threshold value: {thresholds_list[i]}, Percentile area: {percentile_threshold_sa:.2f}%, Percentile grey values: {percentile_grey_values:.2f}%")
 
             # Trying k-means thresholding
             elif kmeans_thresholding:
                 kmeans_init = self.kmeans_initialization_methods[kmeans_init]
-                thresh_sa = self.get_kmeans_threshold(masked_clean_image, k_number, attempts_number, epsilon, kmeans_init=kmeans_init)[0]
-                thresholds_list = self.get_kmeans_threshold(masked_clean_image, k_number, attempts_number, epsilon, kmeans_init=kmeans_init)[1]
+                thresh_sa, thresholds_list = self.get_kmeans_threshold(masked_clean_image, k_number, attempts_number, epsilon, kmeans_init=kmeans_init)
                 
                 # Print thresholds here instead of later
                 for i in range(len(thresholds_list)):
@@ -1280,20 +1296,14 @@ class FeaturesAnalysis():
             else:
                 modified_contours = valid_contours_sa  # to avoid errors if no contours are modified
 
-
-            masked_image = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-            masked_image[otsu_mask == 0] = self.mask_color(masked_color)
-            cv2.drawContours(masked_image, valid_contours_sa, -1, (0, 255, 0), 1)
-
-
             if display_images:
-                mask_min = masked_clean_image1.min() if masked_clean_image1.min() > 0 else 0   
-                if otsu_thresh_value is not None and otsu_thresh_value > 0:
-                    min_hist = otsu_thresh_value
-                else: 
-                    min_hist = 0
+                masked_clean_image = masked_clean_image.astype(np.uint8)
+                masked_image = cv2.cvtColor(masked_clean_image, cv2.COLOR_GRAY2RGB)
+                masked_image[contour_mask == 0] = self.mask_color(masked_color)
+                cv2.drawContours(masked_image, valid_contours_sa, -1, (0, 255, 0), 1)
+
                 histogram, bins = np.histogram(img, bins=256, range=(0, 255))
-                aoi_histogram, aoi_bins = np.histogram(masked_clean_image1, bins=256, range=(mask_min, 255))    # aoi = area of interest
+                aoi_histogram, aoi_bins = np.histogram(masked_clean_image, bins=256, range=(0, 255))    # aoi = area of interest
                 valid_contour_sa_mask = np.zeros_like(img)
                 cv2.drawContours(valid_contour_sa_mask, modified_contours, -1, 255, thickness=cv2.FILLED)
 
@@ -1312,23 +1322,23 @@ class FeaturesAnalysis():
                 self.axs[0,0].add_patch(rect) if self.specific_region_checkbox.value or self.display_specific_region_checkbox.value else None
 
                 if self.specific_region_checkbox.value:
-                    self.axs[0,1].imshow(cropped_image, cmap='gray')
+                    self.axs[0,1].imshow(cropped_image, cmap='viridis')
                     self.axs[0,1].set_title('Thresholding of original image')
                 elif self.display_specific_region_checkbox.value:
                     image = img[y_adj:y_adj+h_adj, x_adj:x_adj+w_adj]
-                    self.axs[0,1].imshow(image, cmap='gray')
+                    image = self.apply_filters(image, gamma, clahe_clip, clahe_tile, contrast, brightness, sigmoid_alpha, sigmoid_beta)
+                    self.axs[0,1].imshow(image, cmap='viridis')
                     self.axs[0,1].set_title('Cropped region of original image')
                 else:
-                    self.axs[0,1].imshow(first_thresh, cmap='gray')
+                    self.axs[0,1].imshow(first_thresh, cmap='viridis')
                     self.axs[0,1].set_title('Cropped region of original image')
 
                 self.axs[0,2].imshow(contour_mask, cmap=colormap)
                 self.axs[0,2].set_title('Filtered thresholded image')
 
                 self.axs[0,3].plot(np.log1p(histogram), color='blue')
-                self.axs[0,3].set_xlabel('Clean Area (nm²)')
                 self.axs[0,3].set_ylabel('Count')
-                self.axs[0,3].set_title('Clean Area Distribution')
+                self.axs[0,3].set_title('Histogram of processed image')
                 self.axs[0,3].grid(True)    
                 self.axs[0,3].set_xlim(0, 25)  
                 self.axs[0,3].set_ylim(0, 40)  
@@ -1361,18 +1371,14 @@ class FeaturesAnalysis():
                     self.axs[1,2].set_title('Filtered clusters and single atoms')
 
                 self.axs[1,3].plot(np.log1p(aoi_histogram), color='green')
-                self.axs[1,3].set_title('Cluster Size Distribution')
-                self.axs[1,3].set_xlabel('Cluster Area (nm²)')
+                self.axs[1,3].set_title('Histogram of investigated area after first thresholding')
                 self.axs[1,3].set_ylabel('Count')
                 self.axs[1,3].grid(True)
-                self.axs[1,3].set_xlim(min_hist - 1, 60)  
-                self.axs[1,3].set_ylim(0, 30)
-                if kmeans_thresholding:
-                    for threshold in thresholds_list:
-                        self.axs[1,3].axvline(x=threshold, color='red', linestyle='--', label=f'Percentile: {threshold:.2f}%') 
-                else: 
-                    self.axs[1,3].axvline(x=threshold_sa1, color='red', linestyle='--', label=f'Percentile: {threshold_sa1:.2f}%')
-                    self.axs[1,3].axvline(x=threshold_sa2, color='red', linestyle='--', label=f'Percentile: {threshold_sa2:.2f}%')
+                self.axs[1,3].set_xlim(0, 60)  
+                self.axs[1,3].set_ylim(0, 20)
+                for threshold in thresholds_list:
+                    self.axs[1,3].axvline(x=threshold, color='red', linestyle='--', label=f'Percentile: {threshold:.2f}%') 
+
                 self.axs[1,3].axis('on')
                 info_text = (
                     f"Number of clusters found:  {len(cluster_areas)}\n")
@@ -1591,6 +1597,8 @@ class FeaturesAnalysis():
                 "attempts_number": self.kmeans_attempts.value,
                 "k_number": self.kmeans_clusters_number.value,
                 "epsilon": self.kmeans_epsilon.value,
+                "otsu_classes_number": self.iterative_otsu_classes_number.value,
+                "otsu_region_selection": self.iterative_otsu_region_selection.value,
                 "display_images": False
             }
             
@@ -1729,6 +1737,8 @@ class FeaturesAnalysis():
                 ("Kmeans_Clusters_Number", self.kmeans_clusters_number),
                 ("Kmeans_Epsilon", self.kmeans_epsilon),
                 ("Thresh_Method", self.thresh_method_dropdown),
+                ("Otsu_Classes_Number", self.iterative_otsu_classes_number),
+                ("Otsu_Region_Selection", self.iterative_otsu_region_selection)
             ]:
                 threshold_method = self.thresh_method_dropdown.value
         
@@ -1745,6 +1755,16 @@ class FeaturesAnalysis():
                     filter_params.update({
                         "Threshold_SA1": np.nan,
                         "Threshold_SA2": np.nan
+                    })
+                elif threshold_method == 'Iterative Otsu':
+                    # Set manual and K-means parameters to NaN
+                    filter_params.update({
+                        "Threshold_SA1": np.nan,
+                        "Threshold_SA2": np.nan,
+                        "Kmeans_Initialization": np.nan,
+                        "Kmeans_Attempts_Number": np.nan,
+                        "Kmeans_Clusters_Number": np.nan,
+                        "Kmeans_Epsilon": np.nan
                     })
                     
                 new_data.update(filter_params)
@@ -1878,6 +1898,8 @@ class FeaturesAnalysis():
                                                             'attempts_number': self.kmeans_attempts,
                                                             'k_number': self.kmeans_clusters_number,
                                                             'epsilon': self.kmeans_epsilon,
+                                                            'otsu_classes_number': self.iterative_otsu_classes_number,
+                                                            'otsu_region_selection': self.iterative_otsu_region_selection,
                                                             'colormap': self.colormap_dropdown, 'masked_color': self.mask_color_dropdown})
 
 

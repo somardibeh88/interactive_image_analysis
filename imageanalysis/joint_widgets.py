@@ -259,6 +259,11 @@ def create_widgets():
     kmeans_epsilon = FloatSlider(value=1.0, min=0.01, max=2.0, step=0.01, description='KM Epsilon', continuous_update=False)
     kmeans_initial_dropdown = Dropdown(options=['K-means++', 'Random'], value='K-means++', description='K-means Initialization')
 
+    # Iterative Otsu Thresholding widget
+    val = 3
+    iterative_otsu_classes_number= IntSlider(value=val, min=2, max=5, description='Number of Classes', continuous_update=False)
+    iterative_otsu_region_selection = IntSlider(value=val - 1, min=1, max=4, description='Select Region', continuous_update=False)
+
     ########################### Filters Checkboxes ###################################
     contrast_checkbox = Checkbox(value=False, description='Contrast Enhancement')
     gaussian_checkbox = Checkbox(value=False, description='Gaussian Blur')
